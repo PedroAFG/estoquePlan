@@ -1,5 +1,7 @@
 package com.estoqueplan.estoque_plan.service;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +29,14 @@ public class VendaService {
 
     public void deletarVendaPorId(Long id) {
         vendaRepository.deleteById(id);
+    }
+
+    public List<Venda> encontrarVendaPorValor (BigDecimal valorTotal) {
+        return vendaRepository.findByValorTotal(valorTotal);
+    }
+
+    public List<Venda> encontrarVendaPorData (LocalDateTime dataDaVenda) {
+        return vendaRepository.findByData(dataDaVenda);
     }
 
 }
