@@ -6,10 +6,12 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import com.estoqueplan.estoque_plan.repository.VendaRepository;
 import com.estoqueplan.estoque_plan.model.Venda;
 
-
+@Service
 public class VendaService {
 
     @Autowired
@@ -36,7 +38,7 @@ public class VendaService {
     }
 
     public List<Venda> encontrarVendaPorData (LocalDateTime dataDaVenda) {
-        return vendaRepository.findByData(dataDaVenda);
+        return vendaRepository.findByDataDaVenda(dataDaVenda);
     }
 
 }

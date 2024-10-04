@@ -1,6 +1,8 @@
 package com.estoqueplan.estoque_plan.controller;
 
+import com.estoqueplan.estoque_plan.model.Cliente;
 import com.estoqueplan.estoque_plan.model.Venda;
+import com.estoqueplan.estoque_plan.service.ClienteService;
 import com.estoqueplan.estoque_plan.service.VendaService;
 
 import java.math.BigDecimal;
@@ -17,13 +19,19 @@ public class VendaController {
 
     @Autowired
     private VendaService vendaService;
+    private ClienteService clienteService;
 
     //Criação de uma venda
     @PostMapping
     public ResponseEntity<Venda> criarVenda(@RequestBody Venda venda) {
+        Cliente cliente = clienteService.encontrarPorId(venda.getCliente().getId())
+            .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+        venda.setCliente(cliente);
+    
         Venda novaVenda = vendaService.salvarVenda(venda);
         return ResponseEntity.ok(novaVenda);
     }
+
 
     //Listar todas as vendas
     @GetMapping

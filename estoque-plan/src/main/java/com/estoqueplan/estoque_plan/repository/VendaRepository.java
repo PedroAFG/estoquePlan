@@ -12,6 +12,6 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
     
     List<Venda> findByValorTotal(BigDecimal valorTotal);
 
-    List<Venda> findByData(LocalDateTime dataDaVenda);
+    List<Venda> findByDataDaVenda(LocalDateTime dataDaVenda);
 
 }

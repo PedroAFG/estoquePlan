@@ -43,7 +43,7 @@ public class UsuarioService {
 
     // Método para buscar usuário por nome e sobrenome com conversão para DTO
     public Optional<UsuarioDTO> buscarUsuarioPorNomeSobrenome(String nome, String sobrenome) {
-        return usuarioRepository.findByNomeSobrenome(nome, sobrenome)
+        return usuarioRepository.findByNomeAndSobrenome(nome, sobrenome)
                 .map(this::toDTO);
     }
 
