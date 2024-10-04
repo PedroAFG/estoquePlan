@@ -29,6 +29,7 @@ public class VendaController {
         venda.setCliente(cliente);
     
         Venda novaVenda = vendaService.salvarVenda(venda);
+        venda.getCliente().setNumeroDeCompras(cliente.getNumeroDeCompras() + 1);
         return ResponseEntity.ok(novaVenda);
     }
 
