@@ -3,6 +3,7 @@ package com.estoqueplan.estoque_plan.controller;
 import com.estoqueplan.estoque_plan.model.Cliente;
 import com.estoqueplan.estoque_plan.service.ClienteService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,8 +26,12 @@ public class ClienteController {
     // Criar um cliente
     @PostMapping
     public ResponseEntity<Cliente> criarCliente(@RequestBody Cliente cliente) {
-        Cliente novoCliente = clienteService.salvar(cliente);
-        return ResponseEntity.ok(novoCliente);
+        try {
+            Cliente novoCliente = clienteService.salvar(cliente);
+            return ResponseEntity.status(HttpStatus.CREATED).body(novoCliente);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // Buscar cliente por ID

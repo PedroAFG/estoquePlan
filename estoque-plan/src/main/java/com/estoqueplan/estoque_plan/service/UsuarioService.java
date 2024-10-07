@@ -47,6 +47,11 @@ public class UsuarioService {
                 .map(this::toDTO);
     }
 
+    public Usuario salvar(Usuario usuario) {
+        return usuarioRepository.save(usuario); // O repositório que faz a persistência no banco
+    }
+    
+
     // Método auxiliar para converter Usuario para UsuarioDTO
     private UsuarioDTO toDTO(Usuario usuario) {
         UsuarioDTO dto = new UsuarioDTO();
