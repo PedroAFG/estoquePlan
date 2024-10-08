@@ -28,9 +28,9 @@ public class UsuarioController {
     // Listar todos os usuários (Retornando apenas o DTO)
     @GetMapping
     public ResponseEntity<List<UsuarioDTO>> listarTodosUsuarios() {
-        List<UsuarioDTO> usuarios = usuarioService.listarTodosUsuarios()  // List<Usuario>
+        List<UsuarioDTO> usuarios = usuarioService.listarTodosUsuarios()  // Retorna List<Usuario>
             .stream()
-            .map(usuario -> toUsuarioDTO(usuario)) // Certifica que estamos passando o tipo correto
+            .map(this::toUsuarioDTO) // Converte Usuario para UsuarioDTO
             .collect(Collectors.toList());
         return ResponseEntity.ok(usuarios);
     }
@@ -49,7 +49,7 @@ public class UsuarioController {
     @GetMapping("/{id}")
     public ResponseEntity<UsuarioDTO> buscarUsuarioPorId(@PathVariable Long id) {
         return usuarioService.buscarUsuariosPorId(id)
-            .map(this::toUsuarioDTO)  // Referência corrigida para mapear corretamente o Usuario para UsuarioDTO
+            .map(this::toUsuarioDTO)  // Converte Usuario para UsuarioDTO
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
     }

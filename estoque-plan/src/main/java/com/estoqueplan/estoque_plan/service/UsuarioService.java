@@ -2,7 +2,6 @@ package com.estoqueplan.estoque_plan.service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -16,17 +15,13 @@ public class UsuarioService {
     private UsuarioRepository usuarioRepository;
 
     // Método para listar todos os usuários com conversão para DTO
-    public List<UsuarioDTO> listarTodosUsuarios() {
-        return usuarioRepository.findAll()
-                .stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
+    public List<Usuario> listarTodosUsuarios() {
+        return usuarioRepository.findAll();  // Deve retornar List<Usuario>
     }
 
     // Método para buscar usuário por ID com conversão para DTO
-    public Optional<UsuarioDTO> buscarUsuariosPorId(Long id) {
-        return usuarioRepository.findById(id)
-                .map(this::toDTO);
+    public Optional<Usuario> buscarUsuariosPorId(Long id) {
+        return usuarioRepository.findById(id);
     }
 
     // Método para buscar usuário por login com conversão para DTO
@@ -48,7 +43,7 @@ public class UsuarioService {
     }
 
     public Usuario salvar(Usuario usuario) {
-        return usuarioRepository.save(usuario); // O repositório que faz a persistência no banco
+        return usuarioRepository.save(usuario);  // Método para salvar um usuário
     }
     
 
