@@ -19,7 +19,7 @@ public class ClienteService {
     @Autowired
     private PessoaJuridicaService pessoaJuridicaService;
 
-    // Método para listar todos os clientes
+    //listar todos os clientes
     public List<Cliente> listarTodosClientes() {
         // Aqui você poderia mesclar resultados de PessoaFisica e PessoaJuridica
         List<PessoaFisica> pessoasFisicas = pessoaFisicaService.listarTodasPessoasFisicas();
@@ -33,7 +33,7 @@ public class ClienteService {
         return todosClientes;
     }
 
-    // Método para salvar cliente (delegando para o serviço apropriado)
+    //método para salvar cliente (delegando para o serviço apropriado)
     public Cliente salvar(Cliente cliente) {
         if (cliente instanceof PessoaFisica) {
             return pessoaFisicaService.salvarPessoaFisica((PessoaFisica) cliente);

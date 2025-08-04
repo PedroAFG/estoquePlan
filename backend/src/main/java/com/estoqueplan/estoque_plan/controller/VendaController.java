@@ -1,14 +1,10 @@
 package com.estoqueplan.estoque_plan.controller;
 
-import com.estoqueplan.estoque_plan.model.Cliente;
-import com.estoqueplan.estoque_plan.model.Venda;
-import com.estoqueplan.estoque_plan.service.ClienteService;
+import com.estoqueplan.estoque_plan.dto.VendaDTO;
 import com.estoqueplan.estoque_plan.service.VendaService;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,62 +15,49 @@ public class VendaController {
 
     @Autowired
     private VendaService vendaService;
-    private ClienteService clienteService;
 
-    //Criação de uma venda
     @PostMapping
-    public ResponseEntity<Venda> criarVenda(@RequestBody Venda venda) {
-        Cliente cliente = clienteService.encontrarPorId(venda.getCliente().getId())
-            .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
-        venda.setCliente(cliente);
-    
-        Venda novaVenda = vendaService.salvarVenda(venda);
-        venda.getCliente().setNumeroDeCompras(cliente.getNumeroDeCompras() + 1);
+    public ResponseEntity<VendaDTO> criarVenda(@RequestBody VendaDTO vendaDTO) {
+        VendaDTO novaVenda = vendaService.salvarVenda(vendaDTO);
         return ResponseEntity.ok(novaVenda);
     }
 
-
-    //Listar todas as vendas
     @GetMapping
-    public ResponseEntity<List<Venda>> listarTodasVendas() {
-        List<Venda> vendas = vendaService.listarTodasVendas();
+    public ResponseEntity<List<VendaDTO>> listarTodasVendas() {
+        List<VendaDTO> vendas = vendaService.listarTodasVendas();
         return ResponseEntity.ok(vendas);
     }
 
-    //Buscar venda por ID
     @GetMapping("/{id}")
-    public ResponseEntity<Venda> buscarVendaPorId(@PathVariable Long id) {
+    public ResponseEntity<VendaDTO> buscarVendaPorId(@PathVariable Long id) {
         return vendaService.encontrarVendaPorId(id)
-                .map(venda -> ResponseEntity.ok(venda))
+                .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    //Buscar venda por valor
-    @GetMapping("/{valor}")
-    public ResponseEntity<List<Venda>> buscarVendasPorValor(@RequestParam BigDecimal valorTotal) {
-        List<Venda> vendas = vendaService.encontrarVendaPorValor(valorTotal);
-        if (vendas.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(vendas);
-    }
-
-    //Buscar venda por valor
-    @GetMapping("/{data}")
-    public ResponseEntity<List<Venda>> buscarVendasPorData(@RequestParam LocalDateTime dataDaVenda) {
-        List<Venda> vendas = vendaService.encontrarVendaPorData(dataDaVenda);
-        if (vendas.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(vendas);
-    }
-
-    //Deletar venda por ID
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarVenda(@PathVariable Long id) {
         vendaService.deletarVendaPorId(id);
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/por-valor")
+    public ResponseEntity<List<VendaDTO>> buscarVendasPorValor(
+            @RequestParam BigDecimal valorTotal) {
+        List<VendaDTO> vendas = vendaService.encontrarVendasPorValor(valorTotal);
+        if (vendas.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(vendas);
+    }
 
+    @GetMapping("/por-data")
+    public ResponseEntity<List<VendaDTO>> buscarVendasPorData(
+            @RequestParam String data) { // Pode ser "2024-07-07"
+        List<VendaDTO> vendas = vendaService.encontrarVendasPorData(data);
+        if (vendas.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(vendas);
+    }
 }

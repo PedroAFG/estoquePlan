@@ -12,6 +12,6 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
     
     List<Venda> findByValorTotal(BigDecimal valorTotal);
 
-    List<Venda> findByDataDaVenda(LocalDateTime dataDaVenda);
+    List<Venda> findByDataDaVendaBetween(LocalDateTime dataDaVenda, LocalDateTime localDateTime);
 
 }

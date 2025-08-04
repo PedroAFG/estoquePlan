@@ -1,5 +1,6 @@
 package com.estoqueplan.estoque_plan.controller;
 
+import com.estoqueplan.estoque_plan.dto.ProdutoDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -27,11 +28,12 @@ public class ProdutoController {
         return ResponseEntity.ok(produtos);
     }
 
-    @PostMapping //criação de produto novo
-    public ResponseEntity<Produto> criarProduto(@RequestBody Produto produto) {
-        Produto novoProduto = produtoService.salvarProduto(produto);
-        return ResponseEntity.ok(novoProduto);
+    @PostMapping
+    public ResponseEntity<Produto> criarProduto(@RequestBody ProdutoDTO dto) {
+        Produto produtoSalvo = produtoService.salvarProduto(dto);
+        return ResponseEntity.ok(produtoSalvo);
     }
+
 
     //buscar produto por ID
     @GetMapping("/{id}")
