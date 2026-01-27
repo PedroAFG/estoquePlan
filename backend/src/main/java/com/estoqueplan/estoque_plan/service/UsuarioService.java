@@ -31,6 +31,7 @@ public class UsuarioService {
         return usuarioRepository.findById(id);
     }
 
+
     public Optional<UsuarioDTO> buscarUsuariosPorLogin(String login) {
         return usuarioRepository.findByLogin(login)
                 .map(this::toDTO);
@@ -50,6 +51,25 @@ public class UsuarioService {
         // Criptografa a senha antes de salvar
         usuario.setSenha(passwordEncoder.encode(usuario.getSenha()));
         return usuarioRepository.save(usuario);
+    }
+
+    public boolean validar(String login, String senha) {
+        Optional<Usuario> usuarioOpt = usuarioRepository.findByLogin(login);
+        if (usuarioOpt.isEmpty()) {
+            return false;
+        }
+        Usuario usuario = usuarioOpt.get();
+        // senha enviada (raw), senha armazenada (hash)
+        return passwordEncoder.matches(senha, usuario.getSenha());
+    }
+
+    public Usuario buscarPorLogin(String login) {
+        return usuarioRepository.findByLogin(login)
+                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+    }
+
+    public Usuario buscarUsuarioPorLoginEntity(String login) {
+        return usuarioRepository.findByLogin(login).orElse(null);
     }
 
     private UsuarioDTO toDTO(Usuario usuario) {

@@ -1,275 +1,334 @@
-import React, { useState } from 'react';
-import './Produtos.css';
-import { Box, TextField, Button, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, IconButton, Collapse } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
-import AddIcon from '@mui/icons-material/Add';
-import Sidebar from '../components/Sidebar';
+import React, { useEffect, useState } from "react";
+import AppLayout from "../layout/AppLayout";
 
-const initialProducts = [
-  { id: 1, descricao: 'Viga de sustentação', madeira: 'Eucalipto', bitola: '10x10', comprimento: '3m', preco: 120.5, quantidade: 15 },
-  { id: 2, descricao: 'Prancha', madeira: 'Pinus', bitola: '5x20', comprimento: '2.5m', preco: 80.0, quantidade: 30 },
-];
+import {
+  Grid,
+  Paper,
+  Typography,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Button,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+} from "@mui/material";
 
-const Produtos = () => {
-  const [products, setProducts] = useState(initialProducts);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ descricao: '', madeira: '', bitola: '', comprimento: '', preco: '', quantidade: '' });
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({});
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+import apiService from "../services/api";
+
+const emptyForm = {
+  descricao: "",
+  unidade: "un",
+  quantidadeDisponivel: 0,
+  categoriaId: "",
+  custo: "",
+  precoVarejo: "",
+  ncm: "",
+  idSebrae: "",
+};
+
+export default function Produtos() {
+  const [produtos, setProdutos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const [produtosData, categoriasData] = await Promise.all([
+        apiService.getProdutos(),
+        apiService.getCategorias(),
+      ]);
+
+      setProdutos(produtosData || []);
+      setCategorias(categoriasData || []);
+    } catch {
+      setError("Erro ao carregar dados");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditChange = (e) => {
-    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm(emptyForm);
+    setOpen(true);
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!form.descricao || !form.madeira || !form.bitola || !form.comprimento || !form.preco || !form.quantidade) return;
-    setProducts([
-      ...products,
-      {
-        id: products.length + 1,
-        ...form,
-        preco: parseFloat(form.preco),
-        quantidade: parseInt(form.quantidade, 10),
-      },
-    ]);
-    setForm({ descricao: '', madeira: '', bitola: '', comprimento: '', preco: '', quantidade: '' });
-    setShowForm(false);
+  const openEdit = (p) => {
+    setEditing(p);
+    setForm({
+      descricao: p.descricao,
+      unidade: p.unidade,
+      quantidadeDisponivel: p.quantidadeDisponivel,
+      categoriaId: p.categoria?.id || "",
+      custo: p.custo,
+      precoVarejo: p.precoVarejo,
+      ncm: p.ncm || "",
+      idSebrae: p.idSebrae || "",
+    });
+    setOpen(true);
   };
 
-  const handleEdit = (product) => {
-    setEditingId(product.id);
-    setEditForm(product);
+  const handleSave = async () => {
+    try {
+      setError("");
+
+      const payload = {
+        descricao: form.descricao,
+        unidade: form.unidade,
+        quantidadeDisponivel: Number(form.quantidadeDisponivel),
+        categoriaId: Number(form.categoriaId),
+        custo: Number(form.custo),
+        precoVarejo: Number(form.precoVarejo),
+        ncm: form.ncm,
+        idSebrae: form.idSebrae,
+      };
+
+      if (editing) {
+        const updated = await apiService.updateProduto(editing.id, payload);
+        setProdutos((prev) =>
+          prev.map((p) => (p.id === editing.id ? updated : p))
+        );
+      } else {
+        const created = await apiService.createProduto(payload);
+        setProdutos((prev) => [...prev, created]);
+      }
+
+      setOpen(false);
+    } catch {
+      setError("Erro ao salvar produto");
+    }
   };
 
-  const handleSave = (id) => {
-    setProducts(products.map((p) => (p.id === id ? { ...editForm, id, preco: parseFloat(editForm.preco), quantidade: parseInt(editForm.quantidade, 10) } : p)));
-    setEditingId(null);
-    setEditForm({});
-  };
+  const handleDelete = async (id) => {
+    if (!window.confirm("Deseja excluir este produto?")) return;
 
-  const handleCancel = () => {
-    setEditingId(null);
-    setEditForm({});
+    try {
+      await apiService.deleteProduto(id);
+      setProdutos((prev) => prev.filter((p) => p.id !== id));
+    } catch {
+      setError("Erro ao excluir produto");
+    }
   };
 
   return (
-    <div className="produtos-root">
-      <Sidebar />
-      <div className="produtos-content">
-        <Box className="produtos-list-card">
-          <div className="produtos-list-header">
-            <Typography variant="h6" className="produtos-list-title" gutterBottom>
-              Produtos Cadastrados
-            </Typography>
-            <Button
-              variant="contained"
-              className="produtos-btn-novo"
-              startIcon={<AddIcon />}
-              onClick={() => setShowForm((prev) => !prev)}
-            >
-              {showForm ? 'Fechar Cadastro' : 'Novo Produto'}
-            </Button>
-          </div>
-          <Collapse in={showForm}>
-            <Box className="produtos-card" style={{ marginBottom: 32 }}>
-              <Typography variant="h5" className="produtos-title" gutterBottom>
-                Cadastro de Produto
-              </Typography>
-              <form className="produtos-form" onSubmit={handleSubmit} autoComplete="off">
-                <TextField
-                  label="Descrição"
-                  name="descricao"
-                  value={form.descricao}
-                  onChange={handleChange}
-                  className="produtos-input"
-                  variant="filled"
-                  required
-                />
-                <TextField
-                  label="Madeira"
-                  name="madeira"
-                  value={form.madeira}
-                  onChange={handleChange}
-                  className="produtos-input"
-                  variant="filled"
-                  required
-                />
-                <TextField
-                  label="Bitola"
-                  name="bitola"
-                  value={form.bitola}
-                  onChange={handleChange}
-                  className="produtos-input"
-                  variant="filled"
-                  required
-                />
-                <TextField
-                  label="Comprimento"
-                  name="comprimento"
-                  value={form.comprimento}
-                  onChange={handleChange}
-                  className="produtos-input"
-                  variant="filled"
-                  required
-                />
-                <TextField
-                  label="Preço"
-                  name="preco"
-                  value={form.preco}
-                  onChange={handleChange}
-                  className="produtos-input"
-                  variant="filled"
-                  type="number"
-                  inputProps={{ min: 0, step: 0.01 }}
-                  required
-                />
-                <TextField
-                  label="Quantidade em Estoque"
-                  name="quantidade"
-                  value={form.quantidade}
-                  onChange={handleChange}
-                  className="produtos-input"
-                  variant="filled"
-                  type="number"
-                  inputProps={{ min: 0, step: 1 }}
-                  required
-                />
-                <Button type="submit" variant="contained" className="produtos-btn">
-                  Cadastrar
-                </Button>
-              </form>
-            </Box>
-          </Collapse>
-          <TableContainer component={Paper} className="produtos-table-container">
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Descrição</TableCell>
-                  <TableCell>Madeira</TableCell>
-                  <TableCell>Bitola</TableCell>
-                  <TableCell>Comprimento</TableCell>
-                  <TableCell>Preço</TableCell>
-                  <TableCell>Qtd. Estoque</TableCell>
-                  <TableCell align="center">Ações</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      {editingId === product.id ? (
-                        <TextField
-                          name="descricao"
-                          value={editForm.descricao}
-                          onChange={handleEditChange}
-                          variant="filled"
-                          className="produtos-table-input"
-                          size="small"
-                        />
-                      ) : (
-                        product.descricao
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === product.id ? (
-                        <TextField
-                          name="madeira"
-                          value={editForm.madeira}
-                          onChange={handleEditChange}
-                          variant="filled"
-                          className="produtos-table-input"
-                          size="small"
-                        />
-                      ) : (
-                        product.madeira
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === product.id ? (
-                        <TextField
-                          name="bitola"
-                          value={editForm.bitola}
-                          onChange={handleEditChange}
-                          variant="filled"
-                          className="produtos-table-input"
-                          size="small"
-                        />
-                      ) : (
-                        product.bitola
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === product.id ? (
-                        <TextField
-                          name="comprimento"
-                          value={editForm.comprimento}
-                          onChange={handleEditChange}
-                          variant="filled"
-                          className="produtos-table-input"
-                          size="small"
-                        />
-                      ) : (
-                        product.comprimento
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === product.id ? (
-                        <TextField
-                          name="preco"
-                          value={editForm.preco}
-                          onChange={handleEditChange}
-                          variant="filled"
-                          className="produtos-table-input"
-                          size="small"
-                          type="number"
-                          inputProps={{ min: 0, step: 0.01 }}
-                        />
-                      ) : (
-                        `R$ ${Number(product.preco).toFixed(2)}`
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === product.id ? (
-                        <TextField
-                          name="quantidade"
-                          value={editForm.quantidade}
-                          onChange={handleEditChange}
-                          variant="filled"
-                          className="produtos-table-input"
-                          size="small"
-                          type="number"
-                          inputProps={{ min: 0, step: 1 }}
-                        />
-                      ) : (
-                        product.quantidade
-                      )}
-                    </TableCell>
-                    <TableCell align="center">
-                      {editingId === product.id ? (
-                        <>
-                          <IconButton color="success" onClick={() => handleSave(product.id)}><SaveIcon /></IconButton>
-                          <IconButton color="error" onClick={handleCancel}><CancelIcon /></IconButton>
-                        </>
-                      ) : (
-                        <IconButton color="primary" onClick={() => handleEdit(product)}><EditIcon /></IconButton>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-      </div>
-    </div>
-  );
-};
+    <AppLayout title="Produtos">
+      <Grid container spacing={2}>
+        {/* Header */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            <Grid container spacing={2} alignItems="center">
 
-export default Produtos;
+              {/* Lado esquerdo */}
+              <Grid item xs={12} md={6}>
+                <Stack spacing={1}>
+                  <Typography variant="h6">Produtos cadastrados</Typography>
+
+                  <Typography variant="body2" color="text.secondary">
+                    {produtos.length} item(ns)
+                  </Typography>
+
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={openCreate}
+                    sx={{ width: "fit-content" }}
+                  >
+                    Novo Produto
+                  </Button>
+                </Stack>
+              </Grid>
+
+              {/* Lado direito */}
+              <Grid item xs={12} md={6}>
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  justifyContent={{ xs: "flex-start", md: "flex-end" }}
+                >
+                  <Button variant="outlined">
+                    Exportar XLSX
+                  </Button>
+
+                  <Button variant="outlined">
+                    Exportar PDF
+                  </Button>
+                </Stack>
+              </Grid>
+
+            </Grid>
+          </Paper>
+        </Grid>
+
+
+        {error && (
+          <Grid item xs={12}>
+            <Alert severity="error">{error}</Alert>
+          </Grid>
+        )}
+
+        {/* Tabela */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            {loading ? (
+              <Stack alignItems="center" py={6}>
+                <CircularProgress />
+              </Stack>
+            ) : (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell><b>Descrição</b></TableCell>
+                      <TableCell><b>Categoria</b></TableCell>
+                      <TableCell><b>Un</b></TableCell>
+                      <TableCell align="right"><b>Qtd</b></TableCell>
+                      <TableCell align="right"><b>Custo</b></TableCell>
+                      <TableCell align="right"><b>Preço</b></TableCell>
+                      <TableCell align="center"><b>Ações</b></TableCell>
+                    </TableRow>
+                  </TableHead>
+
+                  <TableBody>
+                    {produtos.map((p) => (
+                      <TableRow key={p.id} hover>
+                        <TableCell>{p.descricao}</TableCell>
+                        <TableCell>{p.categoria?.nome}</TableCell>
+                        <TableCell>{p.unidade}</TableCell>
+                        <TableCell align="right">{p.quantidadeDisponivel}</TableCell>
+                        <TableCell align="right">
+                          {p.custo.toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </TableCell>
+                        <TableCell align="right">
+                          {p.precoVarejo.toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          })}
+                        </TableCell>
+                        <TableCell align="center">
+                          <IconButton onClick={() => openEdit(p)}>
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton color="error" onClick={() => handleDelete(p.id)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Paper>
+        </Grid>
+
+      </Grid>
+
+      {/* Modal */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editing ? "Editar Produto" : "Novo Produto"}
+        </DialogTitle>
+
+        <DialogContent dividers>
+          <Stack spacing={2} mt={1}>
+            <TextField
+              label="Descrição"
+              value={form.descricao}
+              onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+              fullWidth
+            />
+
+            <FormControl fullWidth>
+              <InputLabel>Categoria</InputLabel>
+              <Select
+                label="Categoria"
+                value={form.categoriaId}
+                onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}
+              >
+                {categorias.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Stack direction="row" spacing={2}>
+              <TextField label="Unidade" value={form.unidade} fullWidth />
+              <TextField
+                label="Quantidade"
+                type="number"
+                value={form.quantidadeDisponivel}
+                fullWidth
+                onChange={(e) =>
+                  setForm({ ...form, quantidadeDisponivel: e.target.value })
+                }
+              />
+            </Stack>
+
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Custo"
+                type="number"
+                fullWidth
+                value={form.custo}
+                onChange={(e) => setForm({ ...form, custo: e.target.value })}
+              />
+              <TextField
+                label="Preço"
+                type="number"
+                fullWidth
+                value={form.precoVarejo}
+                onChange={(e) => setForm({ ...form, precoVarejo: e.target.value })}
+              />
+            </Stack>
+
+            <TextField label="NCM" value={form.ncm} fullWidth />
+            <TextField label="ID Sebrae" value={form.idSebrae} fullWidth />
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={handleSave}>
+            Salvar
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </AppLayout>
+  );
+}

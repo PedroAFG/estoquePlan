@@ -3,6 +3,7 @@ package com.estoqueplan.estoque_plan.controller;
 import com.estoqueplan.estoque_plan.dto.ProdutoDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +30,7 @@ public class ProdutoController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     public ResponseEntity<Produto> criarProduto(@RequestBody ProdutoDTO dto) {
         Produto produtoSalvo = produtoService.salvarProduto(dto);
         return ResponseEntity.ok(produtoSalvo);
@@ -43,6 +45,7 @@ public class ProdutoController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarProduto(@PathVariable Long id) {
         produtoService.deletarProdutoPorId(id);

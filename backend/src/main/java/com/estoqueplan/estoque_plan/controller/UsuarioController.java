@@ -3,9 +3,13 @@ package com.estoqueplan.estoque_plan.controller;
 import java.util.List; // Import correto
 import java.util.stream.Collectors;
 
+import com.estoqueplan.estoque_plan.config.JwtUtil;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,8 +39,40 @@ public class UsuarioController {
         return ResponseEntity.ok(usuarios);
     }
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getMe(HttpServletRequest request) {
+        String token = null;
+
+        // Tenta pegar token do header Authorization
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        }
+        // Ou do cookie "jwt"
+        if (token == null && request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("jwt".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        if (token == null) return ResponseEntity.status(401).body("Token não encontrado");
+
+        String login = jwtUtil.extractUsername(token);
+
+        Usuario usuario = usuarioService.buscarUsuarioPorLoginEntity(login);
+        if (usuario == null) return ResponseEntity.status(404).body("Usuário não encontrado");
+
+        return ResponseEntity.ok(new UsuarioDTO(usuario));
+    }
 
     // Criar um novo usuário (Recebendo o DTO de criação)
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PostMapping
     public ResponseEntity<UsuarioDTO> criarUsuario(@RequestBody UsuarioCreateDTO usuarioCreateDTO) {
         Usuario usuario = toUsuario(usuarioCreateDTO); // Converte DTO para entidade
