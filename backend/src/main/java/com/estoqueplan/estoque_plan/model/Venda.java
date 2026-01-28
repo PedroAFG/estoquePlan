@@ -1,5 +1,6 @@
 package com.estoqueplan.estoque_plan.model;
 
+import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -13,6 +14,13 @@ public class Venda {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private StatusVenda status = StatusVenda.ATIVA;
+
+    private LocalDateTime canceladaEm;
+    private String motivoCancelamento;
 
     @ManyToOne
     @JoinColumn(name = "cliente_id")

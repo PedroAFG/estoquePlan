@@ -7,6 +7,8 @@ import com.estoqueplan.estoque_plan.repository.CategoriaRepository;
 import com.estoqueplan.estoque_plan.repository.ProdutoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,8 +21,11 @@ public class ProdutoService {
     @Autowired
     private ProdutoRepository produtoRepository;
 
-    public List<Produto> listarTodosProdutos() {
-        return produtoRepository.findAll();
+    public List<Produto> listarProdutos(Boolean incluirInativos) {
+        if (Boolean.TRUE.equals(incluirInativos)) {
+            return produtoRepository.findAll();
+        }
+        return produtoRepository.findByAtivoTrue();
     }
 
     public Produto salvarProduto(ProdutoDTO dto) {
@@ -49,7 +54,25 @@ public class ProdutoService {
         return produtoRepository.findById(id);
     }
 
-    public void deletarProdutoPorId(Long id) {
-        produtoRepository.deleteById(id);
+    public void inativarProdutoPorId(Long id) {
+        Produto produto = produtoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produto não encontrado!"));
+
+        if (!produto.isAtivo()) {
+            return;
+        }
+
+        produto.setAtivo(false);
+        produto.setInativadoEm(LocalDateTime.now());
+        produtoRepository.save(produto);
     }
+
+    public void ativarProdutoPorId(Long id) {
+        Produto produto = produtoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+
+        produto.setAtivo(true);
+        produtoRepository.save(produto);
+    }
+
 }

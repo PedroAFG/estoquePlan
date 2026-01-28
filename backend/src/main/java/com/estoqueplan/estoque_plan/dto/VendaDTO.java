@@ -1,5 +1,6 @@
 package com.estoqueplan.estoque_plan.dto;
 
+import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -21,5 +22,6 @@ public class VendaDTO {
     private BigDecimal adicional;
     private BigDecimal frete;
     private List<ItemVendaDTO> itens;
+    private StatusVenda status;
     // getters e setters
 }

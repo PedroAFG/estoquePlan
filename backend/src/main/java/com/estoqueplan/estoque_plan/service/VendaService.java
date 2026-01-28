@@ -11,6 +11,7 @@ import com.estoqueplan.estoque_plan.dto.ItemVendaDTO;
 import com.estoqueplan.estoque_plan.dto.VendaDTO;
 import com.estoqueplan.estoque_plan.model.ItemVenda;
 import com.estoqueplan.estoque_plan.model.Produto;
+import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
 import com.estoqueplan.estoque_plan.repository.ProdutoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -89,12 +90,25 @@ public class VendaService {
         return vendaRepository.findById(id).map(this::converterVendaParaDTO);
     }
 
-    public void deletarVendaPorId(Long id) {
-        if (!vendaRepository.existsById(id)) {
-            throw new RuntimeException("Venda não encontrada para o ID: " + id);
+    public void cancelarVenda(Long id, String motivo) {
+        Venda venda = vendaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Venda não encontrada para o ID: " + id));
+
+        if (venda.getStatus() == StatusVenda.CANCELADA) {
+            return; // idempotente
         }
-        vendaRepository.deleteById(id);
+
+        venda.setStatus(StatusVenda.CANCELADA);
+        venda.setCanceladaEm(LocalDateTime.now());
+        venda.setMotivoCancelamento(motivo);
+
+        // FUTURO (se for controlar estoque/caixa):
+        // - devolver quantidade para o estoque
+        // - estornar movimentação do caixa
+
+        vendaRepository.save(venda);
     }
+
 
     // Métodos auxiliares para converter entre Entity e DTO
     private VendaDTO converterVendaParaDTO(Venda venda) {
@@ -113,6 +127,7 @@ public class VendaService {
         dto.setAdicional(venda.getAdicional());
         dto.setFrete(venda.getFrete());
         dto.setDesconto(venda.getDesconto());
+        dto.setStatus(venda.getStatus());
         dto.setItens(
                 venda.getItens().stream().map(item -> {
                     ItemVendaDTO itemDTO = new ItemVendaDTO();
@@ -130,14 +145,15 @@ public class VendaService {
         return dto;
     }
 
-    public List<VendaDTO> encontrarVendasPorValor(BigDecimal valorTotal) {
-        List<Venda> vendas = vendaRepository.findByValorTotal(valorTotal);
+    public List<VendaDTO> encontrarVendasPorValor(StatusVenda status, BigDecimal valorTotal) {
+        List<Venda> vendas = vendaRepository.findByStatusAndValorTotal(status, valorTotal);
         return vendas.stream().map(this::converterVendaParaDTO).collect(Collectors.toList());
     }
 
-    public List<VendaDTO> encontrarVendasPorData(String data) {
+    public List<VendaDTO> encontrarVendasPorData(StatusVenda status, String data) {
         LocalDate dataVenda = LocalDate.parse(data); // Se o campo for LocalDate
-        List<Venda> vendas = vendaRepository.findByDataDaVendaBetween(
+        List<Venda> vendas = vendaRepository.findByStatusAndDataDaVendaBetween(
+                status,
                 dataVenda.atStartOfDay(),
                 dataVenda.plusDays(1).atStartOfDay()
         );

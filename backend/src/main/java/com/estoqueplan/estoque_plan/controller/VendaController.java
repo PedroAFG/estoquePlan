@@ -1,6 +1,7 @@
 package com.estoqueplan.estoque_plan.controller;
 
 import com.estoqueplan.estoque_plan.dto.VendaDTO;
+import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
 import com.estoqueplan.estoque_plan.service.VendaService;
 
 import java.math.BigDecimal;
@@ -35,16 +36,20 @@ public class VendaController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletarVenda(@PathVariable Long id) {
-        vendaService.deletarVendaPorId(id);
+    @PatchMapping("/{id}/cancelar")
+    public ResponseEntity<Void> cancelarVenda(
+            @PathVariable Long id,
+            @RequestParam(required = false) String motivo
+    ) {
+        vendaService.cancelarVenda(id, motivo);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/por-valor")
     public ResponseEntity<List<VendaDTO>> buscarVendasPorValor(
-            @RequestParam BigDecimal valorTotal) {
-        List<VendaDTO> vendas = vendaService.encontrarVendasPorValor(valorTotal);
+            @RequestParam BigDecimal valorTotal,
+            @RequestParam(required = false, defaultValue = "ATIVA") StatusVenda status) {
+        List<VendaDTO> vendas = vendaService.encontrarVendasPorValor(status, valorTotal);
         if (vendas.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -53,11 +58,11 @@ public class VendaController {
 
     @GetMapping("/por-data")
     public ResponseEntity<List<VendaDTO>> buscarVendasPorData(
-            @RequestParam String data) { // Pode ser "2024-07-07"
-        List<VendaDTO> vendas = vendaService.encontrarVendasPorData(data);
-        if (vendas.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+            @RequestParam String data,
+            @RequestParam(required = false, defaultValue = "ATIVA") StatusVenda status
+    ) {
+        List<VendaDTO> vendas = vendaService.encontrarVendasPorData(status, data);
+        if (vendas.isEmpty()) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(vendas);
     }
 }

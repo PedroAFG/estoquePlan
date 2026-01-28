@@ -3,6 +3,7 @@ package com.estoqueplan.estoque_plan.model;
 import lombok.Data;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "produtos")
@@ -38,4 +39,9 @@ public class Produto {
 
     @Column(name = "id_sebrae")
     private String idSebrae;
+
+    private boolean ativo = true;
+
+    private LocalDateTime inativadoEm;
+
 }
