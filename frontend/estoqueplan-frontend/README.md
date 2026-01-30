@@ -1,70 +1,134 @@
-# Getting Started with Create React App
+# EstoquePlan Frontend
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Frontend do sistema EstoquePlan com autenticação JWT integrada ao backend usando cookies HTTP-only.
 
-## Available Scripts
+## Funcionalidades Implementadas
 
-In the project directory, you can run:
+- ✅ Sistema de login com JWT usando cookies HTTP-only
+- ✅ Proteção de rotas (autenticação obrigatória)
+- ✅ Armazenamento seguro do token em cookies (não localStorage)
+- ✅ Logout funcional com limpeza de cookies
+- ✅ Interface moderna com Material-UI
+- ✅ Validação de formulários
+- ✅ Feedback visual de loading e erros
+- ✅ Tratamento automático de erros 401 (redirecionamento para login)
+- ✅ Verificação assíncrona de autenticação
 
-### `npm start`
+## Como Testar
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 1. Configuração do Backend
+Certifique-se de que o backend do estoquePlan está rodando na porta 8080 (ou ajuste a configuração em `src/config/api.js`).
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 2. Instalação das Dependências
+```bash
+npm install
+```
 
-### `npm test`
+### 3. Executar o Frontend
+```bash
+npm start
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+O frontend estará disponível em `http://localhost:3000`
 
-### `npm run build`
+### 4. Teste do Login
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. Acesse `http://localhost:3000`
+2. Use as credenciais do seu backend:
+   - **Email**: (email cadastrado no backend)
+   - **Senha**: (senha cadastrada no backend)
+3. Clique em "Login"
+4. Se as credenciais estiverem corretas, você será redirecionado para o Dashboard
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 5. Navegação
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Após o login, você pode:
+- Navegar entre Dashboard e Produtos usando o header
+- Fazer logout clicando no botão "Sair"
 
-### `npm run eject`
+## Estrutura do Projeto
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```
+src/
+├── components/
+│   ├── Header.js          # Header com navegação e logout
+│   ├── ProtectedRoute.js  # Componente para proteger rotas
+│   └── LoadingSpinner.js  # Componente de loading
+├── config/
+│   └── api.js            # Configuração da API
+├── contexts/
+│   └── UserContext.js    # Contexto do usuário
+├── hooks/
+│   └── useAuthError.js   # Hook para tratamento de erros de auth
+├── pages/
+│   ├── Login.js          # Página de login
+│   ├── Dashboard.js      # Dashboard principal
+│   └── Produtos.js       # Gestão de produtos
+├── services/
+│   └── api.js           # Serviço de comunicação com backend
+└── App.js               # Roteamento principal
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Configuração da API
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Para alterar a URL do backend, edite o arquivo `src/config/api.js`:
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+```javascript
+export const API_CONFIG = {
+  BASE_URL: 'http://localhost:8080', // Altere aqui
+  // ...
+};
+```
 
-## Learn More
+Ou use variáveis de ambiente criando um arquivo `.env`:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```
+REACT_APP_API_URL=http://localhost:8080
+```
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Fluxo de Autenticação
 
-### Code Splitting
+1. **Login**: Usuário envia email e senha
+2. **Validação**: Backend valida credenciais
+3. **Cookie**: Backend retorna JWT token em cookie HTTP-only
+4. **Acesso**: Cookie é enviado automaticamente em todas as requisições autenticadas
+5. **Logout**: Backend limpa o cookie através do endpoint de logout
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Principais Mudanças Implementadas
 
-### Analyzing the Bundle Size
+### Segurança Aprimorada
+- **Cookies HTTP-only**: Token JWT agora é armazenado em cookies seguros
+- **Sem localStorage**: Eliminação do armazenamento inseguro de tokens
+- **withCredentials**: Todas as requisições incluem cookies automaticamente
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### Tratamento de Erros
+- **Hook useAuthError**: Tratamento consistente de erros 401
+- **Redirecionamento automático**: Usuário é redirecionado para login em caso de token expirado
+- **Limpeza de estado**: Estado do usuário é limpo automaticamente
 
-### Making a Progressive Web App
+### Verificação de Autenticação
+- **Método assíncrono**: `isAuthenticated()` agora faz requisição ao backend
+- **Loading states**: Feedback visual durante verificação de autenticação
+- **Proteção de rotas**: Verificação robusta antes de renderizar páginas protegidas
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Tecnologias Utilizadas
 
-### Advanced Configuration
+- React 18
+- React Router DOM
+- Material-UI
+- Fetch API para requisições HTTP
+- Cookies HTTP-only para persistência do token
+- Context API para gerenciamento de estado do usuário
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## Endpoints Utilizados
 
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- `POST /auth/login` - Autenticação
+- `POST /auth/logout` - Logout
+- `GET /me` - Dados do usuário logado
+- `GET /produtos` - Listar produtos (também usado para verificação de autenticação)
+- `PUT /user/profile` - Atualização de dados do usuário
+- `POST /user/profile/image` - Upload de foto do perfil
+- `GET /produtos` - Listar produtos
+- `POST /produtos` - Criar produto
+- `PUT /produtos/{id}` - Atualizar produto
+- `DELETE /produtos/{id}` - Deletar produto
