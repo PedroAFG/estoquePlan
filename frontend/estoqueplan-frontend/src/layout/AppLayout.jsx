@@ -33,8 +33,10 @@ export default function AppLayout({ children, title, onLogout }) {
         mobileOpen={mobileOpen}
         onCloseMobile={toggleMobile}
         desktopOpen={desktopOpen}
+        onToggleDesktop={toggleDesktop}
         onNavigate={handleNavigate}
       />
+
 
       <Box
         component="main"

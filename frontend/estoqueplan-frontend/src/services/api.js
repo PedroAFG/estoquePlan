@@ -77,11 +77,11 @@ class ApiService {
         method: 'PUT',
         body: JSON.stringify(userData),
       });
-      
+
       if (!response.ok) {
         throw new Error('Erro ao atualizar dados do usuário');
       }
-      
+
       return await response.json();
     } catch (error) {
       throw error;
@@ -113,17 +113,48 @@ class ApiService {
   }
 
   // Método para buscar todos os produtos
-  async getProdutos() {
+  async getProdutos({ incluirInativos = false } = {}) {
     try {
-      const response = await this.authenticatedRequest(API_CONFIG.ENDPOINTS.PRODUTOS);
+      const query = incluirInativos ? '?incluirInativos=true' : '';
+      const response = await this.authenticatedRequest(
+        `${API_CONFIG.ENDPOINTS.PRODUTOS}${query}`
+      );
+
       if (!response.ok) {
         throw new Error('Erro ao buscar produtos');
       }
+
       return await response.json();
     } catch (error) {
       throw error;
     }
   }
+
+
+  // Inativar produto (soft delete)
+  async inativarProduto(id) {
+    try {
+      const response = await this.authenticatedRequest(
+        `${API_CONFIG.ENDPOINTS.PRODUTO}/${id}/inativar`,
+        {
+          method: 'PATCH',
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Erro ao inativar produto');
+      }
+
+      // 204 No Content → não retorna nada
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+
+
+
 
   // Método para buscar todas as categorias
   async getCategorias() {
@@ -158,11 +189,11 @@ class ApiService {
         method: 'POST',
         body: JSON.stringify(produtoData),
       });
-      
+
       if (!response.ok) {
         throw new Error('Erro ao criar produto');
       }
-      
+
       return await response.json();
     } catch (error) {
       throw error;
@@ -176,45 +207,23 @@ class ApiService {
         method: 'PUT',
         body: JSON.stringify(produtoData),
       });
-      
+
       if (!response.ok) {
         throw new Error('Erro ao atualizar produto');
       }
-      
+
       return await response.json();
     } catch (error) {
       throw error;
     }
   }
 
-  // Método para deletar um produto
-  async deleteProduto(id) {
-    try {
-      const response = await this.authenticatedRequest(`${API_CONFIG.ENDPOINTS.PRODUTO}/${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Erro ao deletar produto');
-      }
-      
-      return true;
-    } catch (error) {
-      throw error;
-    }
-  }
 
   // Método para buscar vendas
   async getVendas() {
-    try {
-      const response = await this.authenticatedRequest('/vendas');
-      if (!response.ok) {
-        throw new Error('Erro ao buscar vendas');
-      }
-      return await response.json();
-    } catch (error) {
-      throw error;
-    }
+    const response = await this.authenticatedRequest('/vendas');
+    if (!response.ok) throw new Error('Erro ao buscar vendas');
+    return await response.json();
   }
 
   // Método para criar uma nova venda
@@ -224,11 +233,11 @@ class ApiService {
         method: 'POST',
         body: JSON.stringify(vendaData),
       });
-      
+
       if (!response.ok) {
         throw new Error('Erro ao criar venda');
       }
-      
+
       return await response.json();
     } catch (error) {
       throw error;
@@ -242,32 +251,24 @@ class ApiService {
         method: 'PUT',
         body: JSON.stringify(vendaData),
       });
-      
+
       if (!response.ok) {
         throw new Error('Erro ao atualizar venda');
       }
-      
+
       return await response.json();
     } catch (error) {
       throw error;
     }
   }
 
-  // Método para deletar uma venda
-  async deleteVenda(id) {
-    try {
-      const response = await this.authenticatedRequest(`/vendas/${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Erro ao deletar venda');
-      }
-      
-      return true;
-    } catch (error) {
-      throw error;
-    }
+  async cancelarVenda(id, motivo = '') {
+    const qp = motivo ? `?motivo=${encodeURIComponent(motivo)}` : '';
+    const response = await this.authenticatedRequest(`/vendas/${id}/cancelar${qp}`, {
+      method: 'PATCH',
+    });
+    if (!response.ok) throw new Error('Erro ao cancelar venda');
+    return true; // PATCH pode não vir com body
   }
 
   // Método para buscar clientes
@@ -326,13 +327,98 @@ class ApiService {
     }
   }
 
+    // ======================
+  // FINANCEIRO - TITULOS
+  // ======================
+  async getTitulosFinanceiros() {
+    const response = await this.authenticatedRequest('/financeiro/titulos');
+    if (!response.ok) throw new Error('Erro ao buscar títulos financeiros');
+    return await response.json();
+  }
+
+  async getTituloFinanceiroById(id) {
+    const response = await this.authenticatedRequest(`/financeiro/titulos/${id}`);
+    if (!response.ok) throw new Error('Erro ao buscar título financeiro');
+    return await response.json();
+  }
+
+  async createTituloFinanceiro(payload) {
+    const response = await this.authenticatedRequest('/financeiro/titulos', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Erro ao criar título financeiro');
+    return await response.json();
+  }
+
+  // ======================
+  // FINANCEIRO - PARCELAS
+  // ======================
+  async baixarParcela(id, payload = {}) {
+    const response = await this.authenticatedRequest(`/financeiro/parcelas/${id}/baixar`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error('Erro ao baixar parcela');
+    return await response.json();
+  }
+
+  // ======================
+  // FINANCEIRO - CAIXA
+  // ======================
+  async getSaldoAtual() {
+    const response = await this.authenticatedRequest('/financeiro/caixa/saldo-atual');
+    if (!response.ok) throw new Error('Erro ao buscar saldo atual');
+    return await response.json(); // { saldoAtual }
+  }
+
+  async getMovimentacoesCaixa({ inicio, fim, tipo } = {}) {
+    const params = new URLSearchParams();
+    params.set('inicio', inicio);
+    params.set('fim', fim);
+    if (tipo) params.set('tipo', tipo);
+
+    const response = await this.authenticatedRequest(
+      `/financeiro/caixa/movimentacoes?${params.toString()}`
+    );
+    if (!response.ok) throw new Error('Erro ao buscar movimentações do caixa');
+    return await response.json();
+  }
+
+  async getResumoCaixa({ inicio, fim }) {
+    const params = new URLSearchParams();
+    params.set('inicio', inicio);
+    params.set('fim', fim);
+
+    const response = await this.authenticatedRequest(
+      `/financeiro/caixa/resumo?${params.toString()}`
+    );
+    if (!response.ok) throw new Error('Erro ao buscar resumo do caixa');
+    return await response.json();
+  }
+
+  // ======================
+  // CADASTROS FINANCEIROS
+  // ======================
+  async getCategoriasFinanceiras() {
+    const response = await this.authenticatedRequest('/categoriasFinanceiras');
+    if (!response.ok) throw new Error('Erro ao buscar categorias financeiras');
+    return await response.json();
+  }
+
+  async getFormasPagamento() {
+    const response = await this.authenticatedRequest('/formaPagamento');
+    if (!response.ok) throw new Error('Erro ao buscar formas de pagamento');
+    return await response.json();
+  }
+
   // Método para lidar com erro 401
   handleUnauthorized() {
     // Limpar qualquer estado local se necessário
     // O redirecionamento será feito pelos componentes que capturam o erro
   }
 
-  
+
 }
 
 const apiService = new ApiService();

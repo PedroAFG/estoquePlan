@@ -40,6 +40,13 @@ public class ProdutoController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Produto> editarProduto(@PathVariable Long id, @RequestBody ProdutoDTO dto) {
+        Produto produtoAtualizado = produtoService.atualizarProduto(id, dto);
+        return ResponseEntity.ok(produtoAtualizado);
+    }
+
+
     @PatchMapping("/{id}/ativar")
     public ResponseEntity<Void> ativarProduto(@PathVariable Long id) {
         produtoService.ativarProdutoPorId(id);

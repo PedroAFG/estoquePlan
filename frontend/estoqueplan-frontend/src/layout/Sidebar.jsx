@@ -1,92 +1,181 @@
 import * as React from "react";
 import {
+  Box,
+  Divider,
   Drawer,
+  IconButton,
   List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
   Toolbar,
-  Divider,
-  Box,
   Tooltip,
+  useMediaQuery,
 } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import { useLocation } from "react-router-dom";
+
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import MenuIcon from "@mui/icons-material/Menu";
 
-const drawerWidthOpen = 240;
-const drawerWidthClosed = 72;
+import { AccountBalanceWallet, AttachMoneyOutlined } from "@mui/icons-material";
 
-export default function Sidebar({ mobileOpen, onCloseMobile, desktopOpen, onNavigate }) {
-  const menu = [
-    { label: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
-    { label: "Produtos", icon: <Inventory2Icon />, path: "/produtos" },
-    { label: "Vendas", icon: <PointOfSaleIcon />, path: "/vendas" },
-  ];
+export const drawerSizes = {
+  drawerWidthOpen: 240,
+  drawerWidthClosed: 72,
+};
+
+// ✅ Paths reais (NUNCA deixe path="")
+const menuItems = [
+  { label: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
+  { label: "Produtos", icon: <Inventory2Icon />, path: "/produtos" },
+  { label: "Vendas", icon: <PointOfSaleIcon />, path: "/vendas" },
+  { label: "Títulos Financeiros", icon: <AttachMoneyOutlined />, path: "/financeiro/titulos" },
+  { label: "Gestão do Caixa", icon: <AccountBalanceWallet />, path: "/financeiro/caixa" },
+];
+
+// ✅ selected correto (evita startsWith("") e evita "/" selecionando tudo)
+function isSelected(currentPath, itemPath) {
+  if (!itemPath) return false;
+  if (itemPath === "/") return currentPath === "/";
+  return currentPath === itemPath || currentPath.startsWith(itemPath + "/");
+}
+
+export default function Sidebar({
+  mobileOpen,
+  onCloseMobile,
+  desktopOpen,
+  onToggleDesktop,
+  onNavigate,
+}) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const location = useLocation();
+
+  const drawerWidth = desktopOpen
+    ? drawerSizes.drawerWidthOpen
+    : drawerSizes.drawerWidthClosed;
+
+  const handleItemClick = (path) => {
+    if (!path) return;
+
+    if (onNavigate) onNavigate(path);
+
+    // ✅ mobile fecha sozinho
+    if (isMobile && onCloseMobile) onCloseMobile();
+  };
 
   const content = (
-    <Box>
-      <Toolbar />
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {/* Topo do drawer */}
+      <Toolbar
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: desktopOpen ? "space-between" : "center",
+          px: 1,
+        }}
+      >
+        {/* Toggle só no desktop */}
+        {!isMobile && (
+          <IconButton
+            onClick={onToggleDesktop}
+            aria-label={desktopOpen ? "Fechar sidebar" : "Abrir sidebar"}
+          >
+            {desktopOpen ? <ChevronLeftIcon /> : <MenuIcon />}
+          </IconButton>
+        )}
+      </Toolbar>
+
       <Divider />
-      <List sx={{ pt: 1 }}>
-        {menu.map((item) => (
-          <Tooltip key={item.path} title={!desktopOpen ? item.label : ""} placement="right">
+
+      <List sx={{ flex: 1 }}>
+        {menuItems.map((it) => {
+          const selected = isSelected(location.pathname, it.path);
+
+          const btn = (
             <ListItemButton
-              onClick={() => onNavigate(item.path)}
+              key={it.path}
+              selected={selected}
+              onClick={() => handleItemClick(it.path)}
               sx={{
+                minHeight: 48,
                 justifyContent: desktopOpen ? "initial" : "center",
-                px: desktopOpen ? 2 : 1.5,
+                px: 2,
               }}
             >
-              <ListItemIcon sx={{ minWidth: 0, mr: desktopOpen ? 2 : "auto" }}>
-                {item.icon}
+              <ListItemIcon
+                sx={{
+                  minWidth: 0,
+                  mr: desktopOpen ? 2 : 0,
+                  justifyContent: "center",
+                }}
+              >
+                {it.icon}
               </ListItemIcon>
-              {desktopOpen && <ListItemText primary={item.label} />}
+
+              {desktopOpen && <ListItemText primary={it.label} />}
             </ListItemButton>
-          </Tooltip>
-        ))}
+          );
+
+          // Tooltip quando colapsado no desktop
+          return !isMobile && !desktopOpen ? (
+            <Tooltip key={it.path} title={it.label} placement="right">
+              {btn}
+            </Tooltip>
+          ) : (
+            btn
+          );
+        })}
       </List>
+
+      <Divider />
+      <Box sx={{ p: 1 }} />
     </Box>
   );
 
-  return (
-    <>
-      {/* Mobile */}
+  // ✅ Mobile = Drawer temporário
+  if (isMobile) {
+    return (
       <Drawer
         variant="temporary"
         open={mobileOpen}
         onClose={onCloseMobile}
         ModalProps={{ keepMounted: true }}
         sx={{
-          display: { xs: "block", md: "none" },
-          "& .MuiDrawer-paper": { width: drawerWidthOpen },
-        }}
-      >
-        {content}
-      </Drawer>
-
-      {/* Desktop - colapsável */}
-      <Drawer
-        variant="permanent"
-        open={desktopOpen}
-        sx={{
-          display: { xs: "none", md: "block" },
           "& .MuiDrawer-paper": {
-            overflowX: "hidden",
-            width: desktopOpen ? drawerWidthOpen : drawerWidthClosed,
-            transition: (theme) =>
-              theme.transitions.create("width", {
-                easing: theme.transitions.easing.sharp,
-                duration: theme.transitions.duration.standard,
-              }),
-            boxSizing: "border-box",
+            width: drawerSizes.drawerWidthOpen,
           },
         }}
       >
         {content}
       </Drawer>
-    </>
+    );
+  }
+
+  // ✅ Desktop = Drawer permanente colapsável
+  return (
+    <Drawer
+      variant="permanent"
+      open={desktopOpen}
+      sx={{
+        width: drawerWidth,
+        flexShrink: 0,
+        whiteSpace: "nowrap",
+        "& .MuiDrawer-paper": {
+          width: drawerWidth,
+          overflowX: "hidden",
+          transition: theme.transitions.create("width", {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.standard,
+          }),
+        },
+      }}
+    >
+      {content}
+    </Drawer>
   );
 }
-
-export const drawerSizes = { drawerWidthOpen, drawerWidthClosed };

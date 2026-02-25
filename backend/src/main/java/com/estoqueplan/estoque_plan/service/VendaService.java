@@ -81,6 +81,83 @@ public class VendaService {
         return converterVendaParaDTO(novaVenda);
     }
 
+    public VendaDTO atualizarVenda(Long id, VendaDTO vendaDTO) {
+        Venda venda = vendaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Venda não encontrada para o ID: " + id));
+
+        // Regra 1: não edita venda cancelada
+        if (venda.getStatus() == StatusVenda.CANCELADA) {
+            throw new RuntimeException("Não é possível alterar uma venda cancelada");
+        }
+
+        // Cliente (se vier)
+        if (vendaDTO.getClienteId() != null) {
+            venda.setCliente(clienteService.encontrarPorId(vendaDTO.getClienteId())
+                    .orElseThrow(() -> new RuntimeException("Cliente não encontrado")));
+        } else {
+            venda.setCliente(null);
+        }
+
+        // Campos simples
+        venda.setRua(vendaDTO.getRua());
+        venda.setBairro(vendaDTO.getBairro());
+        venda.setFone(vendaDTO.getFone());
+        venda.setObservacao(vendaDTO.getObservacao());
+        venda.setDesconto(vendaDTO.getDesconto());
+        venda.setAdicional(vendaDTO.getAdicional());
+        venda.setFrete(vendaDTO.getFrete());
+
+        // Itens: vamos substituir a lista inteira (simples e seguro)
+        // Como sua relação tem orphanRemoval=true, remover itens antigos da lista apaga eles no banco
+        venda.getItens().clear();
+
+        List<ItemVenda> novosItens = new ArrayList<>();
+        BigDecimal valorTotalItens = BigDecimal.ZERO;
+
+        if (vendaDTO.getItens() == null || vendaDTO.getItens().isEmpty()) {
+            throw new RuntimeException("A venda precisa ter pelo menos 1 item");
+        }
+
+        for (ItemVendaDTO itemDTO : vendaDTO.getItens()) {
+            ItemVenda item = new ItemVenda();
+            item.setVenda(venda);
+
+            Produto produto = produtoRepository.findById(itemDTO.getProdutoId())
+                    .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+
+            item.setProduto(produto);
+            item.setQuantidade(itemDTO.getQuantidade());
+            item.setUnidade(itemDTO.getUnidade());
+            item.setBitola(itemDTO.getBitola());
+            item.setComprimento(itemDTO.getComprimento());
+            item.setPrecoUnitario(itemDTO.getPrecoUnitario());
+
+            BigDecimal totalItem = itemDTO.getPrecoUnitario()
+                    .multiply(BigDecimal.valueOf(itemDTO.getQuantidade()));
+
+            item.setTotal(totalItem);
+
+            valorTotalItens = valorTotalItens.add(totalItem);
+            novosItens.add(item);
+        }
+
+        venda.getItens().addAll(novosItens);
+
+        // Recalcular total com proteção de null
+        BigDecimal desconto = venda.getDesconto() != null ? venda.getDesconto() : BigDecimal.ZERO;
+        BigDecimal adicional = venda.getAdicional() != null ? venda.getAdicional() : BigDecimal.ZERO;
+        BigDecimal frete = venda.getFrete() != null ? venda.getFrete() : BigDecimal.ZERO;
+
+        venda.setValorTotal(valorTotalItens.subtract(desconto).add(adicional).add(frete));
+
+        // Obs: dataDaVenda geralmente NÃO muda em edição (regra comum)
+        // se você quiser, mantenha como está.
+
+        Venda vendaSalva = vendaRepository.save(venda);
+        return converterVendaParaDTO(vendaSalva);
+    }
+
+
     public List<VendaDTO> listarTodasVendas() {
         List<Venda> vendas = vendaRepository.findAll();
         return vendas.stream().map(this::converterVendaParaDTO).collect(Collectors.toList());

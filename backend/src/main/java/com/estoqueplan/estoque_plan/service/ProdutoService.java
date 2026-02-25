@@ -50,6 +50,37 @@ public class ProdutoService {
         return produtoRepository.save(produto);
     }
 
+    public Produto atualizarProduto(Long id, ProdutoDTO dto) {
+        Produto produto = produtoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+
+        // (Opcional) regra: não editar produto inativo
+        if (!produto.isAtivo()) {
+            throw new RuntimeException("Não é possível editar um produto inativo");
+        }
+
+        // Atualiza campos (só atualiza se vier no DTO - evita sobrescrever com null)
+        if (dto.getDescricao() != null) produto.setDescricao(dto.getDescricao());
+        if (dto.getQuantidadeDisponivel() != null) produto.setQuantidadeDisponivel(dto.getQuantidadeDisponivel());
+        if (dto.getUnidade() != null) produto.setUnidade(dto.getUnidade());
+        if (dto.getCusto() != null) produto.setCusto(dto.getCusto());
+        if (dto.getPrecoVarejo() != null) produto.setPrecoVarejo(dto.getPrecoVarejo());
+        if (dto.getNcm() != null) produto.setNcm(dto.getNcm());
+        if (dto.getIdSebrae() != null) produto.setIdSebrae(dto.getIdSebrae());
+
+        // Categoria: se vier categoriaId, troca. Se vier null, decide sua regra:
+        // - se quiser permitir "remover categoria", mantém esse if com else
+        // - se não quiser permitir, só altera quando vier != null
+        if (dto.getCategoriaId() != null) {
+            Categoria categoria = categoriaRepository.findById(dto.getCategoriaId())
+                    .orElseThrow(() -> new RuntimeException("Categoria não encontrada"));
+            produto.setCategoria(categoria);
+        }
+
+        return produtoRepository.save(produto);
+    }
+
+
     public Optional<Produto> encontrarProdutoPorId(Long id) {
         return produtoRepository.findById(id);
     }

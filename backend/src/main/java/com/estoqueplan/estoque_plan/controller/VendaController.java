@@ -45,6 +45,12 @@ public class VendaController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<VendaDTO> atualizarVenda(@PathVariable Long id, @RequestBody VendaDTO vendaDTO) {
+        VendaDTO vendaAtualizada = vendaService.atualizarVenda(id, vendaDTO);
+        return ResponseEntity.ok(vendaAtualizada);
+    }
+
     @GetMapping("/por-valor")
     public ResponseEntity<List<VendaDTO>> buscarVendasPorValor(
             @RequestParam BigDecimal valorTotal,
