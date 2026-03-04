@@ -5,6 +5,7 @@ import Produtos from './pages/Produtos';
 import Vendas from './pages/Vendas';
 import FinanceiroTitulos from './pages/FinanceiroTitulos';
 import Caixa from './pages/Caixa';
+import CadastrosGerais from './pages/CadastrosGerais';
 import ProtectedRoute from './components/ProtectedRoute';
 import { UserProvider } from './contexts/UserContext';
 
@@ -51,6 +52,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Caixa />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/CadastrosGerais"
+            element={
+              <ProtectedRoute>
+                <CadastrosGerais />
               </ProtectedRoute>
             }
           />

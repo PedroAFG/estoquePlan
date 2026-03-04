@@ -42,6 +42,11 @@ public class ProdutoService {
         if (dto.getCategoriaId() != null) {
             Categoria categoria = categoriaRepository.findById(dto.getCategoriaId())
                     .orElseThrow(() -> new RuntimeException("Categoria não encontrada"));
+
+            if (!categoria.isAtivo()) {
+                throw new RuntimeException("Categoria inativa. Selecione uma categoria ativa ou verifique o status em Cadastros Gerais!");
+            }
+
             produto.setCategoria(categoria);
         } else {
             produto.setCategoria(null);

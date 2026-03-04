@@ -283,7 +283,7 @@ export default function FinanceiroTitulos() {
   };
 
   return (
-    <AppLayout title="Financeiro • Títulos">
+    <AppLayout title="Títulos">
       <Grid container spacing={2}>
         {/* Header + filtros */}
         <Grid item xs={12}>

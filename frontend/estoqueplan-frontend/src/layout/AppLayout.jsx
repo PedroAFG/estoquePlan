@@ -23,6 +23,7 @@ export default function AppLayout({ children, title, onLogout }) {
     <Box sx={{ display: "flex" }}>
       <Topbar
         title={title}
+        drawerWidth={drawerWidth}
         onOpenMobileMenu={toggleMobile}
         onToggleDesktop={toggleDesktop}
         desktopOpen={desktopOpen}

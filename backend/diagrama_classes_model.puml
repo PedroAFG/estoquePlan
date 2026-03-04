@@ -1,0 +1,96 @@
+@startuml
+enum com.estoqueplan.estoque_plan.model.enums.StatusVenda {
++  ATIVA
++  CANCELADA
+}
+
+class com.estoqueplan.estoque_plan.model.Categoria {
+- Long id
+- String nome
+}
+
+class com.estoqueplan.estoque_plan.model.Usuario {
+- Long id
+- String nome
+- String sobrenome
+- LocalDate dataNascimento
+- String cargo
+- String login
+- String senha
+- Permissao permissao
+}
+
+enum com.estoqueplan.estoque_plan.model.Permissao {
++  ADMINISTRADOR
++  COLABORADOR
+}
+
+class com.estoqueplan.estoque_plan.model.PessoaFisica {
+- String cpf
+}
+
+class com.estoqueplan.estoque_plan.model.ItemVenda {
+- Long id
+- Venda venda
+- Produto produto
+- Integer quantidade
+- String unidade
+- String bitola
+- String comprimento
+- BigDecimal precoUnitario
+- BigDecimal total
+}
+
+class com.estoqueplan.estoque_plan.model.PessoaJuridica {
+- String cnpj
+- double capitalSocial
+}
+
+class com.estoqueplan.estoque_plan.model.Venda {
+- Long id
+- StatusVenda status
+- LocalDateTime canceladaEm
+- String motivoCancelamento
+- Cliente cliente
+- List<ItemVenda> itens
+- LocalDateTime dataDaVenda
+- BigDecimal valorTotal
+- BigDecimal desconto
+- BigDecimal adicional
+- BigDecimal frete
+- String rua
+- String bairro
+- String fone
+- String observacao
+}
+
+abstract class com.estoqueplan.estoque_plan.model.Cliente {
+- Long id
+- String nome
+- String email
+- String telefone
+- String endereco
+- int numeroDeCompras
+}
+
+class com.estoqueplan.estoque_plan.model.Produto {
+- Long id
+- String descricao
+- String unidade
+- Categoria categoria
+- BigDecimal custo
+- BigDecimal precoVarejo
+- Integer quantidadeDisponivel
+- String ncm
+- String origem
+- String tipo
+- String idSebrae
+- boolean ativo
+- LocalDateTime inativadoEm
+}
+
+
+
+com.estoqueplan.estoque_plan.model.Cliente <|-- com.estoqueplan.estoque_plan.model.PessoaFisica
+com.estoqueplan.estoque_plan.model.Cliente <|-- com.estoqueplan.estoque_plan.model.PessoaJuridica
+@enduml

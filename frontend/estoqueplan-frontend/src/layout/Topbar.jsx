@@ -5,13 +5,27 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 
 export default function Topbar({
   title = "estoquePlan",
+  drawerWidth = 240,          // ✅ novo
   onOpenMobileMenu,
   onToggleDesktop,
   desktopOpen,
   onLogout,
 }) {
   return (
-    <AppBar position="fixed" elevation={1}>
+    <AppBar
+      position="fixed"
+      elevation={1}
+      sx={{
+        zIndex: (theme) => theme.zIndex.drawer + 1,  // ✅ fica acima do Drawer
+        ml: { md: `${drawerWidth}px` },              // ✅ empurra no desktop
+        width: { md: `calc(100% - ${drawerWidth}px)` }, // ✅ reduz largura no desktop
+        transition: (theme) =>
+          theme.transitions.create(["margin", "width"], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.standard,
+          }),
+      }}
+    >
       <Toolbar>
         {/* Mobile toggle */}
         <IconButton
@@ -23,15 +37,7 @@ export default function Topbar({
           <MenuIcon />
         </IconButton>
 
-        {/* Desktop collapse toggle */}
-        <IconButton
-          color="inherit"
-          edge="start"
-          onClick={onToggleDesktop}
-          sx={{ mr: 1, display: { xs: "none", md: "inline-flex" } }}
-        >
-          {desktopOpen ? <ChevronLeftIcon /> : <MenuIcon />}
-        </IconButton>
+        
 
         <Typography variant="h6" noWrap>
           {title}

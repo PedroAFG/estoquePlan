@@ -5,6 +5,7 @@ import com.estoqueplan.estoque_plan.financeiro.repository.CategoriaFinanceiraRep
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -21,5 +22,17 @@ public class CategoriaFinanceiraService {
         return categoriaFinanceiraRepository.findAll();
     }
 
+    public void inativarCategoriaFinanceira(Long id) {
+        CategoriaFinanceira categoriaFinanceira = categoriaFinanceiraRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+
+        if (!categoriaFinanceira.isAtivo()) {
+            return;
+        }
+
+        categoriaFinanceira.setAtivo(false);
+        categoriaFinanceira.setInativadoEm(LocalDateTime.now());
+        categoriaFinanceiraRepository.save(categoriaFinanceira);
+    }
 
 }

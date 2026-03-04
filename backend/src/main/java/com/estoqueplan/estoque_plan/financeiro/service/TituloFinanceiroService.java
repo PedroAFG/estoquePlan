@@ -39,8 +39,8 @@ public class TituloFinanceiroService {
     public TituloFinanceiroResponseDTO criarTitulo(TituloFinanceiroCreateDTO dto) {
         validarCreate(dto);
 
-        CategoriaFinanceira cat = categoriaRepo.findById(dto.getCategoriaId())
-                .orElseThrow(() -> new RuntimeException("CategoriaFinanceira não encontrada: " + dto.getCategoriaId()));
+        CategoriaFinanceira cat = categoriaRepo.findByIdAndAtivoTrue(dto.getCategoriaId())
+                .orElseThrow(() -> new RuntimeException("Categoria não encontrada ou inativa."));
 
         FormaPagamento forma = formaRepo.findById(dto.getFormaPagamentoId())
                 .orElseThrow(() -> new RuntimeException("FormaPagamento não encontrada: " + dto.getFormaPagamentoId()));

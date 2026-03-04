@@ -8,6 +8,7 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
 
     List<Produto> findByAtivoTrue();
     List<Produto> findByAtivoFalse();
+    boolean existsByCategoriaId(Long categoriaId); //lógica pra inativar categoria no CategoriaService
 
 
 }

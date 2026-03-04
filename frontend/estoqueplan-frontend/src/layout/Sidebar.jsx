@@ -21,7 +21,7 @@ import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import MenuIcon from "@mui/icons-material/Menu";
 
-import { AccountBalanceWallet, AttachMoneyOutlined } from "@mui/icons-material";
+import { AccountBalanceWallet, AppRegistration, AttachMoneyOutlined, Settings } from "@mui/icons-material";
 
 export const drawerSizes = {
   drawerWidthOpen: 240,
@@ -35,6 +35,8 @@ const menuItems = [
   { label: "Vendas", icon: <PointOfSaleIcon />, path: "/vendas" },
   { label: "Títulos Financeiros", icon: <AttachMoneyOutlined />, path: "/financeiro/titulos" },
   { label: "Gestão do Caixa", icon: <AccountBalanceWallet />, path: "/financeiro/caixa" },
+  { label: "Cadastros Gerais", icon: <AppRegistration />, path: "/cadastrosgerais"},
+  { label: "Configurações", icon: <Settings/>, path: "/"},
 ];
 
 // ✅ selected correto (evita startsWith("") e evita "/" selecionando tudo)

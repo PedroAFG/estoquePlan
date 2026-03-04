@@ -4,6 +4,8 @@ import com.estoqueplan.estoque_plan.financeiro.model.enums.TipoTitulo;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "categoria_financeira")
 @Data
@@ -22,5 +24,7 @@ public class CategoriaFinanceira {
 
     @Column(nullable = false)
     private boolean ativo = true;
+
+    private LocalDateTime inativadoEm;
 
 }
