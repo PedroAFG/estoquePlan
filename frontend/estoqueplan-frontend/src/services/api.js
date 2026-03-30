@@ -39,16 +39,15 @@ class ApiService {
   // Método para fazer logout
   async logout() {
     try {
-      const response = await fetch(`${this.baseURL}${API_CONFIG.ENDPOINTS.LOGOUT}`, {
-        method: 'POST',
-        credentials: 'include', // Importante: incluir cookies
+      await fetch(`${this.baseURL}${API_CONFIG.ENDPOINTS.LOGOUT}`, {
+        method: "POST",
+        credentials: "include",
       });
 
-      // Mesmo que a requisição falhe, limpar o estado local
       return true;
     } catch (error) {
-      console.error('Erro no logout:', error);
-      return true; // Sempre retornar true para limpar o estado local
+      console.error("Erro no logout:", error);
+      return true;
     }
   }
 
@@ -73,7 +72,7 @@ class ApiService {
   // Método para atualizar dados do usuário
   async updateUserProfile(userData) {
     try {
-      const response = await this.authenticatedRequest('/user/profile', {
+      const response = await this.authenticatedRequest('/usuarios/me', {
         method: 'PUT',
         body: JSON.stringify(userData),
       });
@@ -157,12 +156,15 @@ class ApiService {
 
 
   // Método para buscar todas as categorias
-  async getCategorias() {
+  async getCategorias({ incluirInativos = false } = {}) {
     try {
-      const response = await this.authenticatedRequest(API_CONFIG.ENDPOINTS.CATEGORIAS);
+      const query = incluirInativos ? "?incluirInativos=true" : "";
+      const response = await this.authenticatedRequest(`/categorias${query}`);
+
       if (!response.ok) {
-        throw new Error('Erro ao buscar categorias');
+        throw new Error("Erro ao buscar categorias");
       }
+
       return await response.json();
     } catch (error) {
       throw error;
@@ -327,7 +329,7 @@ class ApiService {
     }
   }
 
-    // ======================
+  // ======================
   // FINANCEIRO - TITULOS
   // ======================
   async getTitulosFinanceiros() {
@@ -374,14 +376,15 @@ class ApiService {
 
   async getMovimentacoesCaixa({ inicio, fim, tipo } = {}) {
     const params = new URLSearchParams();
-    params.set('inicio', inicio);
-    params.set('fim', fim);
-    if (tipo) params.set('tipo', tipo);
+    params.set("inicio", inicio);
+    params.set("fim", fim);
+    if (tipo) params.set("tipo", tipo);
 
     const response = await this.authenticatedRequest(
       `/financeiro/caixa/movimentacoes?${params.toString()}`
     );
-    if (!response.ok) throw new Error('Erro ao buscar movimentações do caixa');
+
+    if (!response.ok) throw new Error("Erro ao buscar movimentações do caixa");
     return await response.json();
   }
 
@@ -410,6 +413,160 @@ class ApiService {
     const response = await this.authenticatedRequest('/formaPagamento');
     if (!response.ok) throw new Error('Erro ao buscar formas de pagamento');
     return await response.json();
+  }
+
+  /*---------CADASTRO CLIENTES-----------*/
+  async getClienteById(id) {
+    const response = await this.authenticatedRequest(`/clientes/${id}`);
+    if (!response.ok) throw new Error("Erro ao buscar cliente");
+    return await response.json();
+  }
+
+  async createCliente(payload) {
+    const response = await this.authenticatedRequest("/clientes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Erro ao criar cliente");
+    return await response.json();
+  }
+
+  async updateCliente(id, payload) {
+    const response = await this.authenticatedRequest(`/clientes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Erro ao atualizar cliente");
+    return await response.json();
+  }
+
+  async deleteCliente(id) {
+    const response = await this.authenticatedRequest(`/clientes/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Erro ao deletar cliente");
+    return true;
+  }
+
+  async inativarCliente(id) {
+    const response = await this.authenticatedRequest(`/clientes/${id}/inativar`, {
+      method: "PATCH",
+    });
+    if (!response.ok) throw new Error("Erro ao inativar cliente");
+    return true;
+  }
+
+  async ativarCliente(id) {
+    const response = await this.authenticatedRequest(`/clientes/${id}/ativar`, {
+      method: "PATCH",
+    });
+    if (!response.ok) throw new Error("Erro ao ativar cliente");
+    return true;
+  }
+
+  /*---------CADASTRO CATEGORIAS-----------*/
+  async createCategoria(payload) {
+    const response = await this.authenticatedRequest("/categorias", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Erro ao criar categoria");
+    return await response.json();
+  }
+
+  async updateCategoria(id, payload) {
+    const response = await this.authenticatedRequest(`/categorias/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Erro ao atualizar categoria");
+    return await response.json();
+  }
+
+  async inativarCategoria(id) {
+    const response = await this.authenticatedRequest(`/categorias/${id}/inativar`, {
+      method: "PATCH",
+    });
+    if (!response.ok) throw new Error("Erro ao inativar categoria");
+    return true;
+  }
+
+  async ativarCategoria(id) {
+    const response = await this.authenticatedRequest(`/categorias/${id}/ativar`, {
+      method: "PATCH",
+    });
+    if (!response.ok) throw new Error("Erro ao ativar categoria");
+    return true;
+  }
+
+  /*---------CADASTRO CATEGORIAS FINANCEIRAS-----------*/
+  async createCategoriaFinanceira(payload) {
+    const response = await this.authenticatedRequest("/categoriasFinanceiras", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Erro ao criar categoria financeira");
+    return await response.json();
+  }
+
+  async updateCategoriaFinanceira(id, payload) {
+    const response = await this.authenticatedRequest(`/categoriasFinanceiras/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Erro ao atualizar categoria financeira");
+    return await response.json();
+  }
+
+  async inativarCategoriaFinanceira(id) {
+    const response = await this.authenticatedRequest(`/categoriasFinanceiras/${id}/inativar`, {
+      method: "PATCH",
+    });
+    if (!response.ok) throw new Error("Erro ao inativar categoria financeira");
+    return true;
+  }
+
+  async ativarCategoriaFinanceira(id) {
+    const response = await this.authenticatedRequest(`/categoriasFinanceiras/${id}/ativar`, {
+      method: "PATCH",
+    });
+    if (!response.ok) throw new Error("Erro ao ativar categoria financeira");
+    return true;
+  }
+
+  /*---------CADASTRO FORMAS DE PAGAMENTO-----------*/
+  async createFormaPagamento(payload) {
+    const response = await this.authenticatedRequest("/formaPagamento", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Erro ao criar forma de pagamento");
+    return await response.json();
+  }
+
+  async updateFormaPagamento(id, payload) {
+    const response = await this.authenticatedRequest(`/formaPagamento/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error("Erro ao atualizar forma de pagamento");
+    return await response.json();
+  }
+
+  async inativarFormaPagamento(id) {
+    const response = await this.authenticatedRequest(`/formaPagamento/${id}/inativar`, {
+      method: "PATCH",
+    });
+    if (!response.ok) throw new Error("Erro ao inativar forma de pagamento");
+    return true;
+  }
+
+  async ativarFormaPagamento(id) {
+    const response = await this.authenticatedRequest(`/formaPagamento/${id}/ativar`, {
+      method: "PATCH",
+    });
+    if (!response.ok) throw new Error("Erro ao ativar forma de pagamento");
+    return true;
   }
 
   // Método para lidar com erro 401

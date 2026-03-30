@@ -14,6 +14,8 @@ import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 //A tratativa abaixo é uma forma de controlar a abstração da classe Cliente, permitindo cadastro de pessoa física ou jurídica
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
@@ -45,5 +47,9 @@ public abstract class Cliente {
     private String endereco;
 
     private int numeroDeCompras;
+
+    private boolean ativo;
+
+    private LocalDateTime inativadoEm;
 
 }

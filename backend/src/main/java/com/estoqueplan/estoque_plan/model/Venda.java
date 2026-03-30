@@ -1,10 +1,12 @@
 package com.estoqueplan.estoque_plan.model;
 
+import com.estoqueplan.estoque_plan.financeiro.model.TituloFinanceiro;
 import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -28,6 +30,9 @@ public class Venda {
 
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemVenda> itens;
+
+    @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL)
+    private List<TituloFinanceiro> titulosFinanceiros = new ArrayList<>();
 
     private LocalDateTime dataDaVenda;
 

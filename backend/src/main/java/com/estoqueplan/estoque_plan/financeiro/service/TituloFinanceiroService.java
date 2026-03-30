@@ -7,9 +7,11 @@ import com.estoqueplan.estoque_plan.financeiro.model.FormaPagamento;
 import com.estoqueplan.estoque_plan.financeiro.model.ParcelaFinanceira;
 import com.estoqueplan.estoque_plan.financeiro.model.TituloFinanceiro;
 import com.estoqueplan.estoque_plan.financeiro.model.enums.StatusTitulo;
+import com.estoqueplan.estoque_plan.financeiro.model.enums.TipoTitulo;
 import com.estoqueplan.estoque_plan.financeiro.repository.CategoriaFinanceiraRepository;
 import com.estoqueplan.estoque_plan.financeiro.repository.FormaPagamentoRepository;
 import com.estoqueplan.estoque_plan.financeiro.repository.TituloFinanceiroRepository;
+import com.estoqueplan.estoque_plan.model.Venda;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +44,8 @@ public class TituloFinanceiroService {
         CategoriaFinanceira cat = categoriaRepo.findByIdAndAtivoTrue(dto.getCategoriaId())
                 .orElseThrow(() -> new RuntimeException("Categoria não encontrada ou inativa."));
 
-        FormaPagamento forma = formaRepo.findById(dto.getFormaPagamentoId())
-                .orElseThrow(() -> new RuntimeException("FormaPagamento não encontrada: " + dto.getFormaPagamentoId()));
+        FormaPagamento forma = formaRepo.findByIdAndAtivoTrue(dto.getFormaPagamentoId())
+                .orElseThrow(() -> new RuntimeException("FormaPagamento não encontrada ou inativa: " + dto.getFormaPagamentoId()));
 
         TituloFinanceiro titulo = new TituloFinanceiro();
         titulo.setTipo(dto.getTipo());
@@ -53,7 +55,6 @@ public class TituloFinanceiroService {
         titulo.setStatus(StatusTitulo.PENDENTE);
         titulo.setDataEmissao(dto.getDataEmissao() != null ? dto.getDataEmissao() : LocalDateTime.now());
 
-        // Gera parcelas
         int n = dto.getNumeroParcelas();
         int intervalo = (dto.getIntervaloDias() != null && dto.getIntervaloDias() > 0) ? dto.getIntervaloDias() : 30;
         LocalDate vencIni = dto.getPrimeiroVencimento();
@@ -63,6 +64,72 @@ public class TituloFinanceiroService {
 
         TituloFinanceiro salvo = tituloRepo.save(titulo);
         return mapToResponse(salvo);
+    }
+
+    @Transactional
+    public TituloFinanceiro criarTituloPorVenda(Venda venda,
+                                                Long categoriaId,
+                                                Long formaPagamentoId,
+                                                Integer numeroParcelas,
+                                                LocalDate primeiroVencimento,
+                                                Integer intervaloDias,
+                                                String descricaoTitulo) {
+
+        if (venda == null) {
+            throw new RuntimeException("Venda não pode ser nula.");
+        }
+
+        if (venda.getId() == null) {
+            throw new RuntimeException("A venda precisa estar salva antes de gerar o título.");
+        }
+
+        if (venda.getValorTotal() == null || venda.getValorTotal().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Venda com valor total inválido para geração do título.");
+        }
+
+        if (categoriaId == null) {
+            throw new RuntimeException("categoriaFinanceiraId é obrigatório para gerar título da venda.");
+        }
+
+        if (formaPagamentoId == null) {
+            throw new RuntimeException("formaPagamentoId é obrigatório para gerar título da venda.");
+        }
+
+        CategoriaFinanceira categoria = categoriaRepo.findByIdAndAtivoTrue(categoriaId)
+                .orElseThrow(() -> new RuntimeException("Categoria financeira não encontrada ou inativa."));
+
+        FormaPagamento formaPagamento = formaRepo.findByIdAndAtivoTrue(formaPagamentoId)
+                .orElseThrow(() -> new RuntimeException("Forma de pagamento não encontrada ou inativa."));
+
+        int quantidadeParcelas = (numeroParcelas != null && numeroParcelas > 0) ? numeroParcelas : 1;
+        int intervalo = (intervaloDias != null && intervaloDias > 0) ? intervaloDias : 30;
+        LocalDate vencimentoInicial = (primeiroVencimento != null) ? primeiroVencimento : LocalDate.now();
+
+        TituloFinanceiro titulo = new TituloFinanceiro();
+        titulo.setTipo(TipoTitulo.A_RECEBER);
+        titulo.setDescricao(
+                (descricaoTitulo != null && !descricaoTitulo.isBlank())
+                        ? descricaoTitulo.trim()
+                        : "Venda #" + venda.getId()
+        );
+        titulo.setValorTotal(venda.getValorTotal());
+        titulo.setDataEmissao(LocalDateTime.now());
+        titulo.setStatus(StatusTitulo.PENDENTE);
+        titulo.setCategoria(categoria);
+        titulo.setVenda(venda);
+
+        List<ParcelaFinanceira> parcelas = gerarParcelas(
+                titulo,
+                formaPagamento,
+                venda.getValorTotal(),
+                quantidadeParcelas,
+                vencimentoInicial,
+                intervalo
+        );
+
+        titulo.setParcelas(parcelas);
+
+        return tituloRepo.save(titulo);
     }
 
     public List<TituloFinanceiroResponseDTO> listarTodos() {
@@ -94,7 +161,6 @@ public class TituloFinanceiroService {
                                                   int intervaloDias) {
         List<ParcelaFinanceira> lista = new ArrayList<>();
 
-        // valor base arredondado
         BigDecimal base = total.divide(BigDecimal.valueOf(n), 2, RoundingMode.DOWN);
         BigDecimal soma = BigDecimal.ZERO;
 
@@ -106,12 +172,11 @@ public class TituloFinanceiroService {
             p.setTituloFinanceiro(titulo);
             p.setVencimento(primeiroVenc.plusDays((long) (i - 1) * intervaloDias));
 
-            // última parcela recebe ajuste de centavos
             if (i < n) {
                 p.setValor(base);
                 soma = soma.add(base);
             } else {
-                p.setValor(total.subtract(soma)); // fecha exatamente o total
+                p.setValor(total.subtract(soma));
             }
 
             lista.add(p);

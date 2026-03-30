@@ -42,6 +42,25 @@ public class ClienteController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<Cliente> editarCliente(@PathVariable Long id, @RequestBody Cliente body) {
+        Cliente clienteAtualizado = clienteService.atualizarCliente(id, body);
+        return ResponseEntity.ok(clienteAtualizado);
+    }
+
+    @PatchMapping("/{id}/inativar")
+    public ResponseEntity<Void> inativarCliente(@PathVariable Long id) {
+        clienteService.inativarClientePorId(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/ativar")
+    public ResponseEntity<Void> ativarCliente(@PathVariable Long id) {
+        clienteService.ativarClientePorId(id);
+        return ResponseEntity.noContent().build();
+    }
+
+
     // Deletar cliente por ID
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarCliente(@PathVariable Long id) {

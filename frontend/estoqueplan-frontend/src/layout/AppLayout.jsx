@@ -17,10 +17,19 @@ export default function AppLayout({ children, title, onLogout }) {
     setMobileOpen(false);
   };
 
-  const drawerWidth = desktopOpen ? drawerSizes.drawerWidthOpen : drawerSizes.drawerWidthClosed;
+  const drawerWidth = desktopOpen
+    ? drawerSizes.drawerWidthOpen
+    : drawerSizes.drawerWidthClosed;
 
   return (
-    <Box sx={{ display: "flex" }}>
+    <Box
+      sx={{
+        display: "flex",
+        minHeight: "100vh",
+        bgcolor: "#f6f7fb",
+        width: "100%",
+      }}
+    >
       <Topbar
         title={title}
         drawerWidth={drawerWidth}
@@ -38,24 +47,34 @@ export default function AppLayout({ children, title, onLogout }) {
         onNavigate={handleNavigate}
       />
 
-
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          ml: { md: `${drawerWidth}px` },
+          minWidth: 0,
+          bgcolor: "#f6f7fb",
+          minHeight: "100vh",
+          overflowX: "hidden",
           transition: (theme) =>
-            theme.transitions.create("margin", {
+            theme.transitions.create(["all"], {
               easing: theme.transitions.easing.sharp,
               duration: theme.transitions.duration.standard,
             }),
-          bgcolor: "#f6f7fb",
-          minHeight: "100vh",
         }}
       >
         <Toolbar />
-        {children}
+
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: "none",
+            px: { xs: 2, sm: 3, md: 3 },
+            py: 3,
+            boxSizing: "border-box",
+          }}
+        >
+          {children}
+        </Box>
       </Box>
     </Box>
   );

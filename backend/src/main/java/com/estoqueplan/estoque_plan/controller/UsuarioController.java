@@ -1,20 +1,18 @@
 package com.estoqueplan.estoque_plan.controller;
 
-import java.util.List; // Import correto
+import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
+import com.estoqueplan.estoque_plan.dto.UsuarioAdminUpdateDTO;
 import com.estoqueplan.estoque_plan.dto.UsuarioCreateDTO;
 import com.estoqueplan.estoque_plan.dto.UsuarioDTO;
+import com.estoqueplan.estoque_plan.dto.UsuarioPerfilUpdateDTO;
 import com.estoqueplan.estoque_plan.model.Usuario;
 import com.estoqueplan.estoque_plan.service.UsuarioService;
 
@@ -22,59 +20,72 @@ import com.estoqueplan.estoque_plan.service.UsuarioService;
 @RequestMapping("/usuarios")
 public class UsuarioController {
 
-    @Autowired
-    private UsuarioService usuarioService;
+    private final UsuarioService usuarioService;
 
-    // Listar todos os usuários (Retornando apenas o DTO)
+    public UsuarioController(UsuarioService usuarioService) {
+        this.usuarioService = usuarioService;
+    }
+
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @GetMapping
     public ResponseEntity<List<UsuarioDTO>> listarTodosUsuarios() {
-        List<UsuarioDTO> usuarios = usuarioService.listarTodosUsuarios()  // Retorna List<Usuario>
-            .stream()
-            .map(this::toUsuarioDTO) // Converte Usuario para UsuarioDTO
-            .collect(Collectors.toList());
+        List<UsuarioDTO> usuarios = usuarioService.listarTodosUsuarios()
+                .stream()
+                .map(this::toUsuarioDTO)
+                .collect(Collectors.toList());
+
         return ResponseEntity.ok(usuarios);
     }
 
-
-    // Criar um novo usuário (Recebendo o DTO de criação)
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PostMapping
     public ResponseEntity<UsuarioDTO> criarUsuario(@RequestBody UsuarioCreateDTO usuarioCreateDTO) {
-        Usuario usuario = toUsuario(usuarioCreateDTO); // Converte DTO para entidade
-        Usuario novoUsuario = usuarioService.salvar(usuario); // Agora o método salvar está definido
+        Usuario novoUsuario = usuarioService.criarUsuarioViaDTO(usuarioCreateDTO);
         return ResponseEntity.status(HttpStatus.CREATED).body(toUsuarioDTO(novoUsuario));
     }
 
-
-    // Buscar usuário por ID (Retornando DTO)
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @GetMapping("/{id}")
     public ResponseEntity<UsuarioDTO> buscarUsuarioPorId(@PathVariable Long id) {
         return usuarioService.buscarUsuariosPorId(id)
-            .map(this::toUsuarioDTO)  // Converte Usuario para UsuarioDTO
-            .map(ResponseEntity::ok)
-            .orElse(ResponseEntity.notFound().build());
+                .map(this::toUsuarioDTO)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<UsuarioDTO> buscarMeuPerfil(Authentication authentication) {
+        Usuario usuario = usuarioService.buscarPorLogin(authentication.getName());
+        return ResponseEntity.ok(toUsuarioDTO(usuario));
+    }
 
-    // Métodos de conversão (pode estar no service)
+    @PutMapping("/me")
+    public ResponseEntity<UsuarioDTO> atualizarMeuPerfil(
+            @RequestBody UsuarioPerfilUpdateDTO dto,
+            Authentication authentication) {
+        Usuario usuarioAtualizado = usuarioService.atualizarMeuPerfil(authentication.getName(), dto);
+        return ResponseEntity.ok(toUsuarioDTO(usuarioAtualizado));
+    }
+
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PutMapping("/{id}")
+    public ResponseEntity<UsuarioDTO> atualizarUsuarioPorAdmin(
+            @PathVariable Long id,
+            @RequestBody UsuarioAdminUpdateDTO dto,
+            Authentication authentication) {
+        Usuario usuarioAtualizado = usuarioService.atualizarUsuarioPorAdmin(id, authentication.getName(), dto);
+        return ResponseEntity.ok(toUsuarioDTO(usuarioAtualizado));
+    }
+
     private UsuarioDTO toUsuarioDTO(Usuario usuario) {
         UsuarioDTO dto = new UsuarioDTO();
         dto.setId(usuario.getId());
         dto.setNome(usuario.getNome());
         dto.setSobrenome(usuario.getSobrenome());
+        dto.setDataNascimento(usuario.getDataNascimento());
         dto.setCargo(usuario.getCargo());
         dto.setLogin(usuario.getLogin());
         dto.setPermissao(usuario.getPermissao());
         return dto;
-    }
-
-    private Usuario toUsuario(UsuarioCreateDTO dto) {
-        Usuario usuario = new Usuario();
-        usuario.setNome(dto.getNome());
-        usuario.setSobrenome(dto.getSobrenome());
-        usuario.setCargo(dto.getCargo());
-        usuario.setLogin(dto.getLogin());
-        usuario.setSenha(dto.getSenha());
-        usuario.setPermissao(dto.getPermissao());
-        return usuario;
     }
 }

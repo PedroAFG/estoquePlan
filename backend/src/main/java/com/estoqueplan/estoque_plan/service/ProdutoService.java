@@ -108,6 +108,7 @@ public class ProdutoService {
                 .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
 
         produto.setAtivo(true);
+        produto.setInativadoEm(null);
         produtoRepository.save(produto);
     }
 

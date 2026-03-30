@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "forma_pagamento")
@@ -28,5 +29,7 @@ public class FormaPagamento {
 
     @Column(nullable = false)
     private boolean ativo = true;
+
+    private LocalDateTime inativadoEm;
 
 }

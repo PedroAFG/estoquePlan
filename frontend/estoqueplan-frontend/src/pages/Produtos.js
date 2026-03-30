@@ -29,6 +29,8 @@ import {
   FormControlLabel,
   Chip,
   Tooltip,
+  Divider,
+  Box,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -46,6 +48,13 @@ const emptyForm = {
   precoVarejo: "",
   ncm: "",
   idSebrae: "",
+};
+
+const emptyFilters = {
+  busca: "",
+  categoriaId: "",
+  unidade: "",
+  status: "TODOS",
 };
 
 function money(v) {
@@ -76,8 +85,13 @@ export default function Produtos() {
   const [form, setForm] = useState(emptyForm);
 
   const [incluirInativos, setIncluirInativos] = useState(false);
+  const [filters, setFilters] = useState(emptyFilters);
 
   const total = produtos.length;
+
+  const pageContentSx = {
+    width: "100%",
+  };
 
   const loadData = async () => {
     try {
@@ -117,6 +131,7 @@ export default function Produtos() {
 
   const openEdit = (p) => {
     const ativo = p.ativo ?? true;
+
     if (!ativo) {
       setError("Produto inativo não pode ser editado.");
       return;
@@ -155,7 +170,9 @@ export default function Produtos() {
       if (!payload.categoriaId) throw new Error("Selecione uma categoria");
       if (Number.isNaN(payload.custo)) throw new Error("Custo inválido");
       if (Number.isNaN(payload.precoVarejo)) throw new Error("Preço inválido");
-      if (payload.quantidadeDisponivel < 0) throw new Error("Quantidade não pode ser negativa");
+      if (payload.quantidadeDisponivel < 0) {
+        throw new Error("Quantidade não pode ser negativa");
+      }
 
       setLoading(true);
 
@@ -187,10 +204,7 @@ export default function Produtos() {
       setError("");
       setLoading(true);
 
-      // PATCH retorna 204 (sem body)
       await apiService.inativarProduto(p.id);
-
-      // recarrega lista
       await loadData();
     } catch (e) {
       setError(e?.message || "Erro ao inativar produto");
@@ -212,110 +226,260 @@ export default function Produtos() {
     );
   };
 
-  const produtosOrdenados = useMemo(() => {
-    const list = [...produtos];
-    list.sort((a, b) => (a.descricao || "").localeCompare(b.descricao || ""));
-    return list;
+  const unidadesDisponiveis = useMemo(() => {
+    const unicas = new Set(
+      (produtos || [])
+        .map((p) => String(p.unidade || "").trim())
+        .filter(Boolean)
+    );
+
+    return Array.from(unicas).sort((a, b) => a.localeCompare(b));
   }, [produtos]);
+
+  const produtosFiltrados = useMemo(() => {
+    const busca = String(filters.busca || "").trim().toLowerCase();
+
+    return [...produtos]
+      .filter((p) => {
+        if (!busca) return true;
+
+        const texto = `
+          ${p.descricao || ""}
+          ${p.ncm || ""}
+          ${p.idSebrae || ""}
+        `.toLowerCase();
+
+        return texto.includes(busca);
+      })
+      .filter((p) => {
+        if (!filters.categoriaId) return true;
+        return String(p.categoria?.id || "") === String(filters.categoriaId);
+      })
+      .filter((p) => {
+        if (!filters.unidade) return true;
+        return (
+          String(p.unidade || "").toLowerCase() ===
+          String(filters.unidade).toLowerCase()
+        );
+      })
+      .filter((p) => {
+        const ativo = p.ativo ?? true;
+
+        if (filters.status === "ATIVOS") return ativo;
+        if (filters.status === "INATIVOS") return !ativo;
+        return true;
+      })
+      .sort((a, b) => (a.descricao || "").localeCompare(b.descricao || ""));
+  }, [produtos, filters]);
 
   return (
     <AppLayout title="Produtos">
       <Grid container spacing={2}>
-        {/* Header */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              {/* Lado esquerdo */}
-              <Grid item xs={12} md={6}>
-                <Stack spacing={1}>
-                  <Typography variant="h6">Produtos cadastrados</Typography>
+        <Grid item xs={12} sx={pageContentSx}>
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
+            <Stack spacing={2}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} lg={4}>
+                  <Stack spacing={0.5}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Produtos cadastrados
+                    </Typography>
 
-                  <Typography variant="body2" color="text.secondary">
-                    {total} item(ns)
-                  </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {produtosFiltrados.length} de {total} item(ns)
+                    </Typography>
+                  </Stack>
+                </Grid>
 
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={openCreate}
-                    sx={{ width: "fit-content" }}
+                <Grid item xs={12} lg={8}>
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    justifyContent={{ xs: "flex-start", lg: "flex-end" }}
+                    alignItems="center"
+                    flexWrap="wrap"
+                    useFlexGap
                   >
-                    Novo Produto
-                  </Button>
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={openCreate}
+                    >
+                      Novo Produto
+                    </Button>
 
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={incluirInativos}
-                        onChange={(e) => setIncluirInativos(e.target.checked)}
-                      />
+                    <Button variant="contained">Importar</Button>
+                    <Button variant="contained">Exportar XLSX</Button>
+                    <Button variant="contained">Exportar PDF</Button>
+
+                    <FormControlLabel
+                      sx={{ ml: { xs: 0, lg: 1 } }}
+                      control={
+                        <Switch
+                          checked={incluirInativos}
+                          onChange={(e) => setIncluirInativos(e.target.checked)}
+                        />
+                      }
+                      label="Incluir inativos"
+                    />
+                  </Stack>
+                </Grid>
+              </Grid>
+
+              <Divider />
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "1fr 1fr",
+                    lg: "minmax(260px, 2.2fr) minmax(220px, 1.4fr) minmax(160px, 1fr) minmax(160px, 1fr) auto",
+                  },
+                  gap: 2,
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
+                <TextField
+                  label="Buscar"
+                  placeholder="Descrição, NCM ou ID Sebrae"
+                  value={filters.busca}
+                  onChange={(e) =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      busca: e.target.value,
+                    }))
+                  }
+                  fullWidth
+                />
+
+                <FormControl fullWidth>
+                  <InputLabel>Categoria</InputLabel>
+                  <Select
+                    label="Categoria"
+                    value={filters.categoriaId}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        categoriaId: e.target.value,
+                      }))
                     }
-                    label="Incluir inativos"
-                  />
-                </Stack>
-              </Grid>
+                  >
+                    <MenuItem value="">Todas</MenuItem>
+                    {categorias.map((c) => (
+                      <MenuItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-              {/* Lado direito */}
-              <Grid item xs={12} md={6}>
-                <Stack
-                  direction="row"
-                  spacing={2}
-                  justifyContent={{ xs: "flex-start", md: "flex-end" }}
+                <FormControl fullWidth>
+                  <InputLabel>Unidade</InputLabel>
+                  <Select
+                    label="Unidade"
+                    value={filters.unidade}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        unidade: e.target.value,
+                      }))
+                    }
+                  >
+                    <MenuItem value="">Todas</MenuItem>
+                    {unidadesDisponiveis.map((un) => (
+                      <MenuItem key={un} value={un}>
+                        {un}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    label="Status"
+                    value={filters.status}
+                    onChange={(e) =>
+                      setFilters((prev) => ({
+                        ...prev,
+                        status: e.target.value,
+                      }))
+                    }
+                  >
+                    <MenuItem value="TODOS">Todos</MenuItem>
+                    <MenuItem value="ATIVOS">Ativos</MenuItem>
+                    <MenuItem value="INATIVOS">Inativos</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <Button
+                  variant="text"
+                  onClick={() => setFilters(emptyFilters)}
+                  sx={{
+                    height: 56,
+                    minWidth: 100,
+                    whiteSpace: "nowrap",
+                    justifySelf: { xs: "start", lg: "center" },
+                  }}
                 >
-                  <Button variant="outlined">Importar</Button>
-                  <Button variant="outlined">Exportar XLSX</Button>
-                  <Button variant="outlined">Exportar PDF</Button>
-                </Stack>
-              </Grid>
-            </Grid>
+                  Limpar
+                </Button>
+              </Box>
+            </Stack>
           </Paper>
         </Grid>
 
         {error && (
-          <Grid item xs={12}>
+          <Grid item xs={12} sx={pageContentSx}>
             <Alert severity="error">{error}</Alert>
           </Grid>
         )}
 
-        {/* Tabela */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, minHeight: "65vh" }}>
+        <Grid item xs={12} sx={pageContentSx}>
+          <Paper
+            sx={{
+              p: 2,
+              minHeight: "65vh",
+              borderRadius: 3,
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
             {loading ? (
               <Stack alignItems="center" py={6}>
                 <CircularProgress />
               </Stack>
             ) : (
-              <TableContainer sx={{ maxHeight: "65vh" }}>
-                <Table stickyHeader>
+              <TableContainer
+                sx={{
+                  maxHeight: "65vh",
+                  width: "100%",
+                }}
+              >
+                <Table stickyHeader sx={{ width: "100%" }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>
-                        <b>Descrição</b>
-                      </TableCell>
-                      <TableCell>
-                        <b>Categoria</b>
-                      </TableCell>
-                      <TableCell>
-                        <b>Un</b>
-                      </TableCell>
-                      <TableCell align="right">
-                        <b>Qtde</b>
-                      </TableCell>
-                      <TableCell align="right">
-                        <b>Custo</b>
-                      </TableCell>
-                      <TableCell align="right">
-                        <b>Preço</b>
-                      </TableCell>
-
+                      <TableCell><b>Descrição</b></TableCell>
+                      <TableCell><b>Categoria</b></TableCell>
+                      <TableCell><b>Un</b></TableCell>
+                      <TableCell align="right"><b>Qtde</b></TableCell>
+                      <TableCell align="right"><b>Custo</b></TableCell>
+                      <TableCell align="right"><b>Preço</b></TableCell>
                       <TableCell align="center" sx={{ width: 110 }}>
                         <b>Status</b>
                       </TableCell>
-
                       <TableCell align="center" sx={{ width: 180 }}>
                         <b>Inativado em</b>
                       </TableCell>
-
                       <TableCell align="center">
                         <b>Ações</b>
                       </TableCell>
@@ -323,16 +487,14 @@ export default function Produtos() {
                   </TableHead>
 
                   <TableBody>
-                    {produtosOrdenados.map((p) => {
+                    {produtosFiltrados.map((p) => {
                       const ativo = p.ativo ?? true;
 
                       return (
                         <TableRow
                           key={p.id}
                           hover
-                          sx={{
-                            opacity: ativo ? 1 : 0.55,
-                          }}
+                          sx={{ opacity: ativo ? 1 : 0.55 }}
                         >
                           <TableCell>{p.descricao}</TableCell>
                           <TableCell>{p.categoria?.nome || "-"}</TableCell>
@@ -342,16 +504,10 @@ export default function Produtos() {
                           </TableCell>
                           <TableCell align="right">{money(p.custo)}</TableCell>
                           <TableCell align="right">{money(p.precoVarejo)}</TableCell>
-
-                          <TableCell align="center">
-                            {statusChip(p)}
-                          </TableCell>
-
+                          <TableCell align="center">{statusChip(p)}</TableCell>
                           <TableCell align="center">
                             {incluirInativos ? dateTimeBR(p.inativadoEm) : "-"}
                           </TableCell>
-
-
                           <TableCell align="center">
                             <Tooltip title={ativo ? "Editar" : "Produto inativo"}>
                               <span>
@@ -380,15 +536,15 @@ export default function Produtos() {
                       );
                     })}
 
-                    {produtosOrdenados.length === 0 && (
+                    {produtosFiltrados.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={incluirInativos ? 9 : 7}>
+                        <TableCell colSpan={9}>
                           <Typography
                             align="center"
                             color="text.secondary"
                             py={3}
                           >
-                            Nenhum produto encontrado
+                            Nenhum produto encontrado para os filtros informados
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -401,7 +557,6 @@ export default function Produtos() {
         </Grid>
       </Grid>
 
-      {/* Modal */}
       <Dialog open={open} onClose={handleCloseModal} maxWidth="sm" fullWidth>
         <DialogTitle>{editing ? "Editar Produto" : "Novo Produto"}</DialogTitle>
 
@@ -419,7 +574,9 @@ export default function Produtos() {
               <Select
                 label="Categoria"
                 value={form.categoriaId}
-                onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, categoriaId: e.target.value })
+                }
               >
                 {categorias.map((c) => (
                   <MenuItem key={c.id} value={c.id}>

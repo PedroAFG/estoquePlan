@@ -16,4 +16,6 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
 
     List<Venda> findByStatusAndDataDaVendaBetween(StatusVenda status, LocalDateTime inicio, LocalDateTime fim);
 
+    boolean existsByClienteId(Long clienteId);
+
 }

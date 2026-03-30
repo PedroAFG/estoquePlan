@@ -4,6 +4,8 @@ import com.estoqueplan.estoque_plan.model.Usuario;
 
 import lombok.Data;
 
+import java.time.LocalDate;
+
 @Data
 public class UsuarioDTO {
 
@@ -11,6 +13,7 @@ public class UsuarioDTO {
     private String nome;
     private String cargo;
     private String sobrenome;
+    private LocalDate dataNascimento;
     private String login;
     private Usuario.Permissao permissao;
     

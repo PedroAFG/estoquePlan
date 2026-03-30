@@ -8,7 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @RestController
@@ -21,30 +23,35 @@ public class MovimentacaoCaixaController {
         this.caixaService = caixaService;
     }
 
-    // GET /financeiro/caixa/movimentacoes?inicio=2026-02-01T00:00:00&fim=2026-02-28T23:59:59&tipo=ENTRADA
+    // GET /financeiro/caixa/movimentacoes?inicio=2026-03-17&fim=2026-03-18&tipo=ENTRADA
     @GetMapping("/movimentacoes")
     public ResponseEntity<List<MovimentacaoCaixa>> listarMovimentacoes(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fim,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
             @RequestParam(required = false) TipoMovimentacao tipo
     ) {
-        return ResponseEntity.ok(caixaService.listarMovimentacoes(inicio, fim, tipo));
+        LocalDateTime dataHoraInicio = inicio.atStartOfDay();
+        LocalDateTime dataHoraFim = fim.atTime(LocalTime.MAX);
+
+        return ResponseEntity.ok(caixaService.listarMovimentacoes(dataHoraInicio, dataHoraFim, tipo));
     }
 
-    // GET /financeiro/caixa/saldo-atual
     @GetMapping("/saldo-atual")
     public ResponseEntity<SaldoDTO> saldoAtual() {
         BigDecimal saldo = caixaService.saldoAtual();
         return ResponseEntity.ok(new SaldoDTO(saldo));
     }
 
-    // GET /financeiro/caixa/resumo?inicio=...&fim=...
+    // GET /financeiro/caixa/resumo?inicio=2026-03-17&fim=2026-03-18
     @GetMapping("/resumo")
     public ResponseEntity<CaixaService.ResumoCaixaDTO> resumo(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime inicio,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime fim
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim
     ) {
-        return ResponseEntity.ok(caixaService.resumoPeriodo(inicio, fim));
+        LocalDateTime dataHoraInicio = inicio.atStartOfDay();
+        LocalDateTime dataHoraFim = fim.atTime(LocalTime.MAX);
+
+        return ResponseEntity.ok(caixaService.resumoPeriodo(dataHoraInicio, dataHoraFim));
     }
 
     public static class SaldoDTO {
@@ -54,7 +61,12 @@ public class MovimentacaoCaixaController {
             this.saldoAtual = saldoAtual;
         }
 
-        public BigDecimal getSaldoAtual() { return saldoAtual; }
-        public void setSaldoAtual(BigDecimal saldoAtual) { this.saldoAtual = saldoAtual; }
+        public BigDecimal getSaldoAtual() {
+            return saldoAtual;
+        }
+
+        public void setSaldoAtual(BigDecimal saldoAtual) {
+            this.saldoAtual = saldoAtual;
+        }
     }
 }

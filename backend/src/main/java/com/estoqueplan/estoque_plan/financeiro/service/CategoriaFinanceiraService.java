@@ -18,8 +18,29 @@ public class CategoriaFinanceiraService {
         return categoriaFinanceiraRepository.save(categoriaFinanceira);
     }
 
-    public List<CategoriaFinanceira> listarCategoriasFinanceiras() {
-        return categoriaFinanceiraRepository.findAll();
+    public List<CategoriaFinanceira> listarCategoriasFinanceiras(Boolean incluirInativos) {
+        if (Boolean.TRUE.equals(incluirInativos)) {
+            return categoriaFinanceiraRepository.findAll();
+        }
+        return categoriaFinanceiraRepository.findByAtivoTrue();
+
+    }
+
+    public CategoriaFinanceira atualizarCategoriaFinanceira(Long id, CategoriaFinanceira categoriaFinAtualizada) {
+        CategoriaFinanceira categoriaFinanceira = categoriaFinanceiraRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+
+        if (categoriaFinAtualizada.getNome() == null || categoriaFinAtualizada.getNome().isBlank()) {
+            throw new RuntimeException("Nome não pode ser vazio!");
+        }
+        if (categoriaFinAtualizada.getTipo() == null) {
+            throw new RuntimeException("Tipo é obrigatório!");
+        }
+
+        categoriaFinanceira.setNome(categoriaFinAtualizada.getNome().trim());
+        categoriaFinanceira.setTipo(categoriaFinAtualizada.getTipo());
+
+        return categoriaFinanceiraRepository.save(categoriaFinanceira);
     }
 
     public void inativarCategoriaFinanceira(Long id) {
@@ -32,6 +53,15 @@ public class CategoriaFinanceiraService {
 
         categoriaFinanceira.setAtivo(false);
         categoriaFinanceira.setInativadoEm(LocalDateTime.now());
+        categoriaFinanceiraRepository.save(categoriaFinanceira);
+    }
+
+    public void ativarCategoriaFinanceiraPorId(Long id) {
+        CategoriaFinanceira categoriaFinanceira = categoriaFinanceiraRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Categoria não encontrada"));
+
+        categoriaFinanceira.setAtivo(true);
+        categoriaFinanceira.setInativadoEm(null);
         categoriaFinanceiraRepository.save(categoriaFinanceira);
     }
 

@@ -1,21 +1,19 @@
 package com.estoqueplan.estoque_plan.dto;
 
+import java.time.LocalDate;
+
 import com.estoqueplan.estoque_plan.model.Usuario;
 
 import lombok.Data;
 
-import java.time.LocalDate;
-
 @Data
-public class UsuarioCreateDTO {
+public class UsuarioAdminUpdateDTO {
 
     private String nome;
     private String sobrenome;
     private LocalDate dataNascimento;
     private String cargo;
     private String login;
-    private String senha;  // A senha pode ser recebida na criação
+    private String senha;
     private Usuario.Permissao permissao;
-
 }
-

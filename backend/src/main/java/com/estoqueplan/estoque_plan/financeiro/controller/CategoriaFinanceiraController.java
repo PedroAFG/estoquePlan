@@ -21,7 +21,27 @@ public class CategoriaFinanceiraController {
     }
 
     @GetMapping
-    public ResponseEntity<List<CategoriaFinanceira>> listarCategoriaFinanceira() {
-        return ResponseEntity.ok(categoriaFinanceiraService.listarCategoriasFinanceiras());
+    public ResponseEntity<List<CategoriaFinanceira>> listarCategoriaFinanceira(
+            @RequestParam(required = false, defaultValue = "false") Boolean incluirInativos
+    ) {
+        return ResponseEntity.ok(categoriaFinanceiraService.listarCategoriasFinanceiras(incluirInativos));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<CategoriaFinanceira> editarCategoriaFinanceira(@PathVariable Long id, @RequestBody CategoriaFinanceira body) {
+        CategoriaFinanceira categoriaFinanceiraAtualizada = categoriaFinanceiraService.atualizarCategoriaFinanceira(id, body);
+        return ResponseEntity.ok(categoriaFinanceiraAtualizada);
+    }
+
+    @PatchMapping("/{id}/inativar")
+    public ResponseEntity<Void> inativarCategoriaFinanceira(@PathVariable Long id) {
+        categoriaFinanceiraService.inativarCategoriaFinanceira(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/ativar")
+    public ResponseEntity<Void> ativarCategoriaFinanceira(@PathVariable Long id) {
+        categoriaFinanceiraService.ativarCategoriaFinanceiraPorId(id);
+        return ResponseEntity.noContent().build();
     }
 }

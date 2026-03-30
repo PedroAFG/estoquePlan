@@ -4,6 +4,7 @@ import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,4 +25,12 @@ public class VendaDTO {
     private List<ItemVendaDTO> itens;
     private StatusVenda status;
     // getters e setters
+
+    // - dados do financeiro pra gerar titulo conforme a criacao da venda
+    private Long categoriaFinanceiraId;
+    private Long formaPagamentoId;
+    private Integer numeroParcelas;
+    private LocalDate primeiroVencimento;
+    private Integer intervaloDias;
+    private String descricaoTitulo;
 }

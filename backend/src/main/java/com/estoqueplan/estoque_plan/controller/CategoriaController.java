@@ -20,8 +20,29 @@ public class CategoriaController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Categoria>> listarCategorias() {
-        return ResponseEntity.ok(categoriaService.listarCategorias());
+    public ResponseEntity<List<Categoria>> listarCategorias(
+            @RequestParam(required = false, defaultValue = "false") Boolean incluirInativos
+    ) {
+        return ResponseEntity.ok(categoriaService.listarCategorias(incluirInativos));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Categoria> editarCategoria(@PathVariable Long id, @RequestBody Categoria body) {
+        Categoria categoriaAtualizada = categoriaService.atualizarCategoria(id, body);
+        return ResponseEntity.ok(categoriaAtualizada);
+    }
+
+    @PatchMapping("/{id}/inativar")
+    public ResponseEntity<Void> inativarCategoria(@PathVariable Long id) {
+        categoriaService.inativarCategoriaPorId(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/ativar")
+    public ResponseEntity<Void> ativarCategoria(@PathVariable Long id) {
+        categoriaService.ativarCategoriaPorId(id);
+        return ResponseEntity.noContent().build();
+    }
+
 }
 

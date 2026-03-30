@@ -22,7 +22,27 @@ public class FormaPagamentoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<FormaPagamento>> listarFormasPagamento() {
-        return ResponseEntity.ok(formaPagamentoService.listarFormasPagamento());
+    public ResponseEntity<List<FormaPagamento>> listarFormasPagamento(
+            @RequestParam(required = false, defaultValue = "false") Boolean incluirInativos
+    ) {
+        return ResponseEntity.ok(formaPagamentoService.listarFormasPagamento(incluirInativos));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<FormaPagamento> editarFormaPagamento(@PathVariable Long id, @RequestBody FormaPagamento body) {
+        FormaPagamento formaPagamentoAtualizada = formaPagamentoService.atualizarFormaPagamento(id, body);
+        return ResponseEntity.ok(formaPagamentoAtualizada);
+    }
+
+    @PatchMapping("/{id}/inativar")
+    public ResponseEntity<Void> inativarFormaPagamento(@PathVariable Long id) {
+        formaPagamentoService.inativarFormaPagamento(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/ativar")
+    public ResponseEntity<Void> ativarFormaPagamento(@PathVariable Long id) {
+        formaPagamentoService.ativarFormaPagamento(id);
+        return ResponseEntity.noContent().build();
     }
 }

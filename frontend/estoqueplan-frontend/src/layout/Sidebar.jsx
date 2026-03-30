@@ -35,8 +35,8 @@ const menuItems = [
   { label: "Vendas", icon: <PointOfSaleIcon />, path: "/vendas" },
   { label: "Títulos Financeiros", icon: <AttachMoneyOutlined />, path: "/financeiro/titulos" },
   { label: "Gestão do Caixa", icon: <AccountBalanceWallet />, path: "/financeiro/caixa" },
-  { label: "Cadastros Gerais", icon: <AppRegistration />, path: "/cadastrosgerais"},
-  { label: "Configurações", icon: <Settings/>, path: "/"},
+  { label: "Cadastros Gerais", icon: <AppRegistration />, path: "/cadastros"},
+  { label: "Configurações", icon: <Settings/>, path: "/configuracoes"},
 ];
 
 // ✅ selected correto (evita startsWith("") e evita "/" selecionando tudo)

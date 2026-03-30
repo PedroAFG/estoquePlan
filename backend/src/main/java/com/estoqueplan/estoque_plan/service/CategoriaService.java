@@ -14,6 +14,8 @@ import java.util.Optional;
 public class CategoriaService {
     @Autowired
     private CategoriaRepository categoriaRepository;
+
+    @Autowired
     private ProdutoRepository produtoRepository;
 
     public Categoria salvarCategoria(Categoria categoria) {
@@ -31,6 +33,20 @@ public class CategoriaService {
         return categoriaRepository.findById(id);
     }
 
+    public Categoria atualizarCategoria(Long id, Categoria categoriaAtualizada) {
+        Categoria categoria = categoriaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+
+        // atualiza somente o que você permite editar
+        if (categoriaAtualizada.getNome() != null && !categoriaAtualizada.getNome().isBlank()) {
+            categoria.setNome(categoriaAtualizada.getNome().trim());
+        } else {
+            throw new RuntimeException("Nome da categoria é obrigatório");
+        }
+
+        return categoriaRepository.save(categoria);
+    }
+
     public void inativarCategoriaPorId(Long id) {
         Categoria categoria = categoriaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
@@ -41,6 +57,15 @@ public class CategoriaService {
 
         categoria.setAtivo(false);
         categoria.setInativadoEm(LocalDateTime.now());
+        categoriaRepository.save(categoria);
+    }
+
+    public void ativarCategoriaPorId(Long id) {
+        Categoria categoria = categoriaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+
+        categoria.setAtivo(true);
+        categoria.setInativadoEm(null);
         categoriaRepository.save(categoria);
     }
 

@@ -1,5 +1,19 @@
 package com.estoqueplan.estoque_plan.service;
 
+import com.estoqueplan.estoque_plan.dto.ItemVendaDTO;
+import com.estoqueplan.estoque_plan.dto.VendaDTO;
+import com.estoqueplan.estoque_plan.financeiro.repository.TituloFinanceiroRepository;
+import com.estoqueplan.estoque_plan.financeiro.service.TituloFinanceiroService;
+import com.estoqueplan.estoque_plan.model.ItemVenda;
+import com.estoqueplan.estoque_plan.model.Produto;
+import com.estoqueplan.estoque_plan.model.Venda;
+import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
+import com.estoqueplan.estoque_plan.repository.ProdutoRepository;
+import com.estoqueplan.estoque_plan.repository.VendaRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.estoqueplan.estoque_plan.financeiro.model.TituloFinanceiro;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -7,33 +21,36 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import com.estoqueplan.estoque_plan.dto.ItemVendaDTO;
-import com.estoqueplan.estoque_plan.dto.VendaDTO;
-import com.estoqueplan.estoque_plan.model.ItemVenda;
-import com.estoqueplan.estoque_plan.model.Produto;
-import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
-import com.estoqueplan.estoque_plan.repository.ProdutoRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import com.estoqueplan.estoque_plan.repository.VendaRepository;
-import com.estoqueplan.estoque_plan.model.Venda;
 
 @Service
 public class VendaService {
+
+    @Autowired
+    private TituloFinanceiroRepository tituloFinanceiroRepository;
+
     @Autowired
     private VendaRepository vendaRepository;
+
     @Autowired
     private ClienteService clienteService;
+
     @Autowired
     private ProdutoRepository produtoRepository;
-    // Adicione outros repos conforme precisar
 
+    @Autowired
+    private TituloFinanceiroService tituloFinanceiroService;
+
+    @Transactional
     public VendaDTO salvarVenda(VendaDTO vendaDTO) {
+        validarVenda(vendaDTO);
+
         Venda venda = new Venda();
+
         if (vendaDTO.getClienteId() != null) {
             venda.setCliente(clienteService.encontrarPorId(vendaDTO.getClienteId())
                     .orElseThrow(() -> new RuntimeException("Cliente não encontrado")));
         }
+
         venda.setRua(vendaDTO.getRua());
         venda.setBairro(vendaDTO.getBairro());
         venda.setFone(vendaDTO.getFone());
@@ -43,54 +60,84 @@ public class VendaService {
         venda.setAdicional(vendaDTO.getAdicional());
         venda.setFrete(vendaDTO.getFrete());
 
-        // Para cada item, cria ItemVenda e adiciona na venda
         List<ItemVenda> itens = new ArrayList<>();
-        BigDecimal valorTotal = BigDecimal.ZERO;
+        BigDecimal valorTotalItens = BigDecimal.ZERO;
 
         for (ItemVendaDTO itemDTO : vendaDTO.getItens()) {
+            if (itemDTO.getProdutoId() == null) {
+                throw new RuntimeException("ProdutoId do item é obrigatório.");
+            }
+
+            if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade() <= 0) {
+                throw new RuntimeException("Quantidade do item deve ser maior que zero.");
+            }
+
+            if (itemDTO.getPrecoUnitario() == null || itemDTO.getPrecoUnitario().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Preço unitário do item deve ser maior que zero.");
+            }
+
             ItemVenda item = new ItemVenda();
             item.setVenda(venda);
+
             Produto produto = produtoRepository.findById(itemDTO.getProdutoId())
                     .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+
             item.setProduto(produto);
             item.setQuantidade(itemDTO.getQuantidade());
             item.setUnidade(itemDTO.getUnidade());
             item.setBitola(itemDTO.getBitola());
             item.setComprimento(itemDTO.getComprimento());
             item.setPrecoUnitario(itemDTO.getPrecoUnitario());
-            item.setTotal(itemDTO.getPrecoUnitario().multiply(
-                    BigDecimal.valueOf(itemDTO.getQuantidade()))
-            );
-            valorTotal = valorTotal.add(item.getTotal());
+
+            BigDecimal totalItem = itemDTO.getPrecoUnitario()
+                    .multiply(BigDecimal.valueOf(itemDTO.getQuantidade()));
+
+            item.setTotal(totalItem);
+
+            valorTotalItens = valorTotalItens.add(totalItem);
             itens.add(item);
         }
 
-        //abaixo, o calculo total da venda inicia com validação e "prevenção" de NullPointer, ou seja,
-        //SE o desconto NÃO for nulo, use o valor dele.
-        //SE for nulo, use ZERO (BigDecimal.ZERO) para não afetar o resultado da conta e não causar erro.
         BigDecimal desconto = venda.getDesconto() != null ? venda.getDesconto() : BigDecimal.ZERO;
         BigDecimal adicional = venda.getAdicional() != null ? venda.getAdicional() : BigDecimal.ZERO;
         BigDecimal frete = venda.getFrete() != null ? venda.getFrete() : BigDecimal.ZERO;
 
-        venda.setValorTotal(valorTotal.subtract(desconto).add(adicional).add(frete));
+        BigDecimal valorFinalVenda = valorTotalItens
+                .subtract(desconto)
+                .add(adicional)
+                .add(frete);
+
+        if (valorFinalVenda.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("O valor final da venda deve ser maior que zero.");
+        }
+
+        venda.setValorTotal(valorFinalVenda);
         venda.setItens(itens);
 
         Venda novaVenda = vendaRepository.save(venda);
 
-        // Converter de volta pra DTO antes de retornar (pode usar mapper manual ou MapStruct)
+        tituloFinanceiroService.criarTituloPorVenda(
+                novaVenda,
+                vendaDTO.getCategoriaFinanceiraId(),
+                vendaDTO.getFormaPagamentoId(),
+                vendaDTO.getNumeroParcelas(),
+                vendaDTO.getPrimeiroVencimento(),
+                vendaDTO.getIntervaloDias(),
+                vendaDTO.getDescricaoTitulo()
+        );
+
         return converterVendaParaDTO(novaVenda);
     }
 
+    @Transactional
     public VendaDTO atualizarVenda(Long id, VendaDTO vendaDTO) {
         Venda venda = vendaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Venda não encontrada para o ID: " + id));
 
-        // Regra 1: não edita venda cancelada
         if (venda.getStatus() == StatusVenda.CANCELADA) {
             throw new RuntimeException("Não é possível alterar uma venda cancelada");
         }
 
-        // Cliente (se vier)
         if (vendaDTO.getClienteId() != null) {
             venda.setCliente(clienteService.encontrarPorId(vendaDTO.getClienteId())
                     .orElseThrow(() -> new RuntimeException("Cliente não encontrado")));
@@ -98,7 +145,6 @@ public class VendaService {
             venda.setCliente(null);
         }
 
-        // Campos simples
         venda.setRua(vendaDTO.getRua());
         venda.setBairro(vendaDTO.getBairro());
         venda.setFone(vendaDTO.getFone());
@@ -107,8 +153,6 @@ public class VendaService {
         venda.setAdicional(vendaDTO.getAdicional());
         venda.setFrete(vendaDTO.getFrete());
 
-        // Itens: vamos substituir a lista inteira (simples e seguro)
-        // Como sua relação tem orphanRemoval=true, remover itens antigos da lista apaga eles no banco
         venda.getItens().clear();
 
         List<ItemVenda> novosItens = new ArrayList<>();
@@ -143,20 +187,15 @@ public class VendaService {
 
         venda.getItens().addAll(novosItens);
 
-        // Recalcular total com proteção de null
         BigDecimal desconto = venda.getDesconto() != null ? venda.getDesconto() : BigDecimal.ZERO;
         BigDecimal adicional = venda.getAdicional() != null ? venda.getAdicional() : BigDecimal.ZERO;
         BigDecimal frete = venda.getFrete() != null ? venda.getFrete() : BigDecimal.ZERO;
 
         venda.setValorTotal(valorTotalItens.subtract(desconto).add(adicional).add(frete));
 
-        // Obs: dataDaVenda geralmente NÃO muda em edição (regra comum)
-        // se você quiser, mantenha como está.
-
         Venda vendaSalva = vendaRepository.save(venda);
         return converterVendaParaDTO(vendaSalva);
     }
-
 
     public List<VendaDTO> listarTodasVendas() {
         List<Venda> vendas = vendaRepository.findAll();
@@ -172,29 +211,51 @@ public class VendaService {
                 .orElseThrow(() -> new RuntimeException("Venda não encontrada para o ID: " + id));
 
         if (venda.getStatus() == StatusVenda.CANCELADA) {
-            return; // idempotente
+            return;
         }
 
         venda.setStatus(StatusVenda.CANCELADA);
         venda.setCanceladaEm(LocalDateTime.now());
         venda.setMotivoCancelamento(motivo);
 
-        // FUTURO (se for controlar estoque/caixa):
-        // - devolver quantidade para o estoque
-        // - estornar movimentação do caixa
-
         vendaRepository.save(venda);
     }
 
+    private void validarVenda(VendaDTO vendaDTO) {
+        if (vendaDTO == null) {
+            throw new RuntimeException("Os dados da venda não podem ser nulos.");
+        }
 
-    // Métodos auxiliares para converter entre Entity e DTO
+        if (vendaDTO.getItens() == null || vendaDTO.getItens().isEmpty()) {
+            throw new RuntimeException("A venda precisa ter pelo menos 1 item.");
+        }
+
+        if (vendaDTO.getCategoriaFinanceiraId() == null) {
+            throw new RuntimeException("categoriaFinanceiraId é obrigatório.");
+        }
+
+        if (vendaDTO.getFormaPagamentoId() == null) {
+            throw new RuntimeException("formaPagamentoId é obrigatório.");
+        }
+
+        if (vendaDTO.getNumeroParcelas() != null && vendaDTO.getNumeroParcelas() <= 0) {
+            throw new RuntimeException("numeroParcelas deve ser maior que zero.");
+        }
+
+        if (vendaDTO.getIntervaloDias() != null && vendaDTO.getIntervaloDias() <= 0) {
+            throw new RuntimeException("intervaloDias deve ser maior que zero.");
+        }
+    }
+
     private VendaDTO converterVendaParaDTO(Venda venda) {
         VendaDTO dto = new VendaDTO();
         dto.setId(venda.getId());
+
         if (venda.getCliente() != null) {
             dto.setClienteId(venda.getCliente().getId());
             dto.setNomeCliente(venda.getCliente().getNome());
         }
+
         dto.setRua(venda.getRua());
         dto.setBairro(venda.getBairro());
         dto.setFone(venda.getFone());
@@ -205,6 +266,7 @@ public class VendaService {
         dto.setFrete(venda.getFrete());
         dto.setDesconto(venda.getDesconto());
         dto.setStatus(venda.getStatus());
+
         dto.setItens(
                 venda.getItens().stream().map(item -> {
                     ItemVendaDTO itemDTO = new ItemVendaDTO();
@@ -219,6 +281,35 @@ public class VendaService {
                     return itemDTO;
                 }).collect(Collectors.toList())
         );
+
+        tituloFinanceiroRepository.findByVendaId(venda.getId()).ifPresent(titulo -> {
+            dto.setCategoriaFinanceiraId(
+                    titulo.getCategoria() != null ? titulo.getCategoria().getId() : null
+            );
+
+            dto.setDescricaoTitulo(titulo.getDescricao());
+
+            if (titulo.getParcelas() != null && !titulo.getParcelas().isEmpty()) {
+                dto.setFormaPagamentoId(
+                        titulo.getParcelas().get(0).getFormaPagamento() != null
+                                ? titulo.getParcelas().get(0).getFormaPagamento().getId()
+                                : null
+                );
+
+                dto.setNumeroParcelas(titulo.getParcelas().size());
+                dto.setPrimeiroVencimento(titulo.getParcelas().get(0).getVencimento());
+
+                if (titulo.getParcelas().size() > 1) {
+                    dto.setIntervaloDias(
+                            (int) java.time.temporal.ChronoUnit.DAYS.between(
+                                    titulo.getParcelas().get(0).getVencimento(),
+                                    titulo.getParcelas().get(1).getVencimento()
+                            )
+                    );
+                }
+            }
+        });
+
         return dto;
     }
 
@@ -228,7 +319,7 @@ public class VendaService {
     }
 
     public List<VendaDTO> encontrarVendasPorData(StatusVenda status, String data) {
-        LocalDate dataVenda = LocalDate.parse(data); // Se o campo for LocalDate
+        LocalDate dataVenda = LocalDate.parse(data);
         List<Venda> vendas = vendaRepository.findByStatusAndDataDaVendaBetween(
                 status,
                 dataVenda.atStartOfDay(),
@@ -237,4 +328,3 @@ public class VendaService {
         return vendas.stream().map(this::converterVendaParaDTO).collect(Collectors.toList());
     }
 }
-

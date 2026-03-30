@@ -76,6 +76,22 @@ const emptyForm = {
     adicional: "",
     frete: "",
     itens: [{ ...emptyItem }],
+
+    categoriaFinanceiraId: "",
+    formaPagamentoId: "",
+    numeroParcelas: 1,
+    primeiroVencimento: new Date().toISOString().split("T")[0],
+    intervaloDias: 30,
+    descricaoTitulo: "",
+};
+
+const emptyFilters = {
+    busca: "",
+    status: "TODAS",
+    valorMin: "",
+    valorMax: "",
+    dataInicial: "",
+    dataFinal: "",
 };
 
 export default function Vendas() {
@@ -83,18 +99,19 @@ export default function Vendas() {
     const [clientes, setClientes] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [produtos, setProdutos] = useState([]);
+    const [categoriasFinanceiras, setCategoriasFinanceiras] = useState([]);
+    const [formasPagamento, setFormasPagamento] = useState([]);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
     const [incluirCanceladas, setIncluirCanceladas] = useState(false);
+    const [filters, setFilters] = useState(emptyFilters);
 
-    // modal criar/editar
     const [openForm, setOpenForm] = useState(false);
-    const [editing, setEditing] = useState(null); // venda ou null
+    const [editing, setEditing] = useState(null);
     const [form, setForm] = useState(emptyForm);
 
-    // modal detalhes
     const [openDetails, setOpenDetails] = useState(false);
     const [details, setDetails] = useState(null);
 
@@ -105,27 +122,42 @@ export default function Vendas() {
         [vendas]
     );
 
+    const pageContentSx = {
+        width: "100%",
+    };
+
     const loadData = async () => {
         try {
             setLoading(true);
             setError("");
 
-            const [vendasData, clientesData, categoriasData, produtosData] =
-                await Promise.all([
-                    apiService.getVendas(),
-                    apiService.getClientes(),
-                    apiService.getCategorias(),
-                    apiService.getProdutos({ incluirInativos: false }).catch(() =>
-                        apiService.getProdutos()
-                    ),
-                ]);
+            const [
+                vendasData,
+                clientesData,
+                categoriasData,
+                produtosData,
+                categoriasFinanceirasData,
+                formasPagamentoData,
+            ] = await Promise.all([
+                apiService.getVendas(),
+                apiService.getClientes(),
+                apiService.getCategorias(),
+                apiService
+                    .getProdutos({ incluirInativos: false })
+                    .catch(() => apiService.getProdutos()),
+                apiService.getCategoriasFinanceiras(),
+                apiService.getFormasPagamento(),
+            ]);
 
             setVendas(vendasData || []);
             setClientes(clientesData || []);
             setCategorias(categoriasData || []);
+            setCategoriasFinanceiras(categoriasFinanceirasData || []);
+            setFormasPagamento(formasPagamentoData || []);
 
-            // garante só ativos no combo (segurança)
-            const ativos = (produtosData || []).filter((p) => (p.ativo ?? true) === true);
+            const ativos = (produtosData || []).filter(
+                (p) => (p.ativo ?? true) === true
+            );
             setProdutos(ativos);
         } catch (e) {
             setError(e?.message || "Erro ao carregar dados");
@@ -137,22 +169,6 @@ export default function Vendas() {
     useEffect(() => {
         loadData();
     }, []);
-
-    // filtro local (GET /vendas vem com tudo)
-    const vendasFiltradas = useMemo(() => {
-        const list = [...vendas];
-
-        const filtered = incluirCanceladas
-            ? list
-            : list.filter((v) => (v.status || "ATIVA") === "ATIVA");
-
-        // mais recentes primeiro
-        filtered.sort(
-            (a, b) => new Date(b.dataDaVenda || 0) - new Date(a.dataDaVenda || 0)
-        );
-
-        return filtered;
-    }, [vendas, incluirCanceladas]);
 
     const getClienteById = (id) =>
         clientes.find((c) => Number(c.id) === Number(id));
@@ -177,26 +193,78 @@ export default function Vendas() {
         );
     };
 
-    // ============
-    // Cliente: auto preencher rua / fone
-    // ============
+    const vendasFiltradas = useMemo(() => {
+        const busca = String(filters.busca || "").trim().toLowerCase();
+        const valorMin = filters.valorMin === "" ? null : Number(filters.valorMin);
+        const valorMax = filters.valorMax === "" ? null : Number(filters.valorMax);
+
+        return [...vendas]
+            .filter((v) => {
+                const status = v.status || "ATIVA";
+                return incluirCanceladas ? true : status === "ATIVA";
+            })
+            .filter((v) => {
+                if (!busca) return true;
+
+                const clienteNome = (v.nomeCliente || getClienteNome(v.clienteId) || "")
+                    .toString()
+                    .toLowerCase();
+
+                const texto = `
+          ${v.id || ""}
+          ${clienteNome}
+          ${v.observacao || ""}
+          ${v.rua || ""}
+          ${v.bairro || ""}
+        `.toLowerCase();
+
+                return texto.includes(busca);
+            })
+            .filter((v) => {
+                if (filters.status === "TODAS") return true;
+                return String(v.status || "ATIVA") === String(filters.status);
+            })
+            .filter((v) => {
+                if (valorMin === null || Number.isNaN(valorMin)) return true;
+                return Number(v.valorTotal || 0) >= valorMin;
+            })
+            .filter((v) => {
+                if (valorMax === null || Number.isNaN(valorMax)) return true;
+                return Number(v.valorTotal || 0) <= valorMax;
+            })
+            .filter((v) => {
+                if (!filters.dataInicial) return true;
+                const dataVenda = v.dataDaVenda ? new Date(v.dataDaVenda) : null;
+                if (!dataVenda || Number.isNaN(dataVenda.getTime())) return false;
+
+                const inicio = new Date(`${filters.dataInicial}T00:00:00`);
+                return dataVenda >= inicio;
+            })
+            .filter((v) => {
+                if (!filters.dataFinal) return true;
+                const dataVenda = v.dataDaVenda ? new Date(v.dataDaVenda) : null;
+                if (!dataVenda || Number.isNaN(dataVenda.getTime())) return false;
+
+                const fim = new Date(`${filters.dataFinal}T23:59:59`);
+                return dataVenda <= fim;
+            })
+            .sort(
+                (a, b) => new Date(b.dataDaVenda || 0) - new Date(a.dataDaVenda || 0)
+            );
+    }, [vendas, incluirCanceladas, filters, clientes]);
+
     const handleClienteChange = (clienteId) => {
         const c = getClienteById(clienteId);
 
         setForm((f) => ({
             ...f,
             clienteId,
-            // teu Cliente tem telefone e endereco (um campo só)
             fone: c?.telefone || f.fone || "",
             rua: c?.endereco || f.rua || "",
-            // bairro não existe no ClienteDTO do swagger, então mantém o que tinha
             bairro: f.bairro || "",
         }));
     };
 
-    // ============
-    // Totais
-    // ============
     const calcItemTotal = (item) => {
         const qtd = Number(item.quantidade || 0);
         const pu = Number(item.precoUnitario || 0);
@@ -216,9 +284,6 @@ export default function Vendas() {
         return subtotal - descontoNum + adicionalNum + freteNum;
     }, [subtotal, descontoNum, adicionalNum, freteNum]);
 
-    // ============
-    // Modal: abrir/fechar
-    // ============
     const handleCloseForm = () => {
         setOpenForm(false);
         setEditing(null);
@@ -261,6 +326,14 @@ export default function Vendas() {
                     precoUnitario: it.precoUnitario ?? "",
                 };
             }),
+
+            categoriaFinanceiraId: v.categoriaFinanceiraId ?? "",
+            formaPagamentoId: v.formaPagamentoId ?? "",
+            numeroParcelas: v.numeroParcelas ?? 1,
+            primeiroVencimento:
+                v.primeiroVencimento ?? new Date().toISOString().split("T")[0],
+            intervaloDias: v.intervaloDias ?? 30,
+            descricaoTitulo: v.descricaoTitulo ?? "",
         });
 
         setOpenForm(true);
@@ -276,9 +349,6 @@ export default function Vendas() {
         setDetails(null);
     };
 
-    // ============
-    // Itens do form
-    // ============
     const addItem = () => {
         setForm((f) => ({
             ...f,
@@ -319,14 +389,9 @@ export default function Vendas() {
         updateItem(idx, {
             produtoId,
             unidade: prod?.unidade || "un",
-            // se quiser auto-preencher com preço sugerido:
-            // precoUnitario: prod?.precoVarejo ?? "",
         });
     };
 
-    // ============
-    // Salvar / Cancelar venda
-    // ============
     const validateForm = () => {
         const clienteId = Number(form.clienteId);
         if (!clienteId) throw new Error("Selecione um cliente");
@@ -334,15 +399,41 @@ export default function Vendas() {
         const itens = form.itens || [];
         if (!itens.length) throw new Error("Adicione pelo menos 1 item");
 
+        if (!Number(form.categoriaFinanceiraId)) {
+            throw new Error("Selecione a categoria financeira");
+        }
+
+        if (!Number(form.formaPagamentoId)) {
+            throw new Error("Selecione a forma de pagamento");
+        }
+
+        const parcelas = Number(form.numeroParcelas);
+        if (!parcelas || parcelas <= 0) {
+            throw new Error("Número de parcelas inválido");
+        }
+
+        if (!form.primeiroVencimento) {
+            throw new Error("Informe o primeiro vencimento");
+        }
+
+        const intervalo = Number(form.intervaloDias);
+        if (!intervalo || intervalo <= 0) {
+            throw new Error("Intervalo entre parcelas inválido");
+        }
+
         itens.forEach((it, i) => {
-            if (!Number(it.categoriaId)) throw new Error(`Selecione a categoria do item ${i + 1}`);
-            if (!Number(it.produtoId)) throw new Error(`Selecione o produto do item ${i + 1}`);
+            if (!Number(it.categoriaId))
+                throw new Error(`Selecione a categoria do item ${i + 1}`);
+            if (!Number(it.produtoId))
+                throw new Error(`Selecione o produto do item ${i + 1}`);
 
             const qtd = Number(it.quantidade);
             const pu = Number(it.precoUnitario);
 
-            if (!qtd || qtd <= 0) throw new Error(`Quantidade inválida no item ${i + 1}`);
-            if (Number.isNaN(pu) || pu <= 0) throw new Error(`Preço unitário inválido no item ${i + 1}`);
+            if (!qtd || qtd <= 0)
+                throw new Error(`Quantidade inválida no item ${i + 1}`);
+            if (Number.isNaN(pu) || pu <= 0)
+                throw new Error(`Preço unitário inválido no item ${i + 1}`);
         });
     };
 
@@ -361,6 +452,14 @@ export default function Vendas() {
                 desconto: form.desconto === "" ? 0 : Number(form.desconto || 0),
                 adicional: form.adicional === "" ? 0 : Number(form.adicional || 0),
                 frete: form.frete === "" ? 0 : Number(form.frete || 0),
+
+                categoriaFinanceiraId: Number(form.categoriaFinanceiraId),
+                formaPagamentoId: Number(form.formaPagamentoId),
+                numeroParcelas: Number(form.numeroParcelas || 1),
+                primeiroVencimento: form.primeiroVencimento,
+                intervaloDias: Number(form.intervaloDias || 30),
+                descricaoTitulo: String(form.descricaoTitulo || "").trim(),
+
                 itens: (form.itens || []).map((it) => ({
                     produtoId: Number(it.produtoId),
                     quantidade: Number(it.quantidade),
@@ -374,7 +473,9 @@ export default function Vendas() {
             let saved;
             if (editing?.id) {
                 saved = await apiService.updateVenda(editing.id, payload);
-                setVendas((prev) => prev.map((v) => (v.id === editing.id ? saved : v)));
+                setVendas((prev) =>
+                    prev.map((v) => (v.id === editing.id ? saved : v))
+                );
             } else {
                 saved = await apiService.createVenda(payload);
                 setVendas((prev) => [saved, ...prev]);
@@ -404,8 +505,6 @@ export default function Vendas() {
             setLoading(true);
 
             await apiService.cancelarVenda(v.id, motivo || "");
-
-            // PATCH pode não voltar body → recarrega
             await loadData();
         } catch (e) {
             setError(e?.message || "Erro ao cancelar venda");
@@ -417,81 +516,237 @@ export default function Vendas() {
     return (
         <AppLayout title="Vendas">
             <Grid container spacing={2}>
-                {/* Header */}
-                <Grid item xs={12}>
-                    <Paper sx={{ p: 2 }}>
-                        <Grid container spacing={2} alignItems="center">
-                            {/* Lado esquerdo */}
-                            <Grid item xs={12} md={6}>
-                                <Stack spacing={1}>
-                                    <Typography variant="h6">Vendas</Typography>
+                <Grid item xs={12} sx={pageContentSx}>
+                    <Paper
+                        sx={{
+                            p: 2.5,
+                            borderRadius: 3,
+                            width: "100%",
+                            overflow: "hidden",
+                        }}
+                    >
+                        <Stack spacing={2}>
+                            <Grid container spacing={2} alignItems="center">
+                                <Grid item xs={12} lg={4}>
+                                    <Stack spacing={0.5}>
+                                        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                            Vendas cadastradas
+                                        </Typography>
 
-                                    <Typography variant="body2" color="text.secondary">
-                                        {total} venda(s) • {totalCanceladas} cancelada(s)
-                                    </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            {vendasFiltradas.length} de {total} venda(s) •{" "}
+                                            {totalCanceladas} cancelada(s)
+                                        </Typography>
+                                    </Stack>
+                                </Grid>
 
-                                    <Button
-                                        variant="contained"
-                                        startIcon={<AddIcon />}
-                                        onClick={openCreate}
-                                        sx={{ width: "fit-content" }}
+                                <Grid item xs={12} lg={8}>
+                                    <Stack
+                                        direction="row"
+                                        spacing={1.5}
+                                        justifyContent={{ xs: "flex-start", lg: "flex-end" }}
+                                        alignItems="center"
+                                        flexWrap="wrap"
+                                        useFlexGap
                                     >
-                                        Nova Venda
-                                    </Button>
+                                        <Button
+                                            variant="contained"
+                                            startIcon={<AddIcon />}
+                                            onClick={openCreate}
+                                        >
+                                            Nova Venda
+                                        </Button>
 
-                                    <FormControlLabel
-                                        control={
-                                            <Switch
-                                                checked={incluirCanceladas}
-                                                onChange={(e) => setIncluirCanceladas(e.target.checked)}
-                                            />
+                                        <Button variant="contained">Importar</Button>
+                                        <Button variant="contained">Exportar XLSX</Button>
+                                        <Button variant="contained">Exportar PDF</Button>
+
+                                        <FormControlLabel
+                                            sx={{ ml: { xs: 0, lg: 1 } }}
+                                            control={
+                                                <Switch
+                                                    checked={incluirCanceladas}
+                                                    onChange={(e) =>
+                                                        setIncluirCanceladas(e.target.checked)
+                                                    }
+                                                />
+                                            }
+                                            label="Incluir canceladas"
+                                        />
+                                    </Stack>
+                                </Grid>
+                            </Grid>
+
+                            <Divider />
+
+                            <Box
+                                sx={{
+                                    display: "grid",
+                                    gridTemplateColumns: {
+                                        xs: "1fr",
+                                        md: "1fr 1fr",
+                                        xl: "minmax(260px,1.9fr) minmax(160px,1fr) minmax(140px,0.85fr) minmax(140px,0.85fr) minmax(170px,1fr) minmax(170px,1fr) auto",
+                                    },
+                                    gap: 2,
+                                    alignItems: "center",
+                                    width: "100%",
+                                }}
+                            >
+                                <TextField
+                                    label="Buscar"
+                                    placeholder="Cliente, observação ou nº da venda"
+                                    value={filters.busca}
+                                    onChange={(e) =>
+                                        setFilters((prev) => ({
+                                            ...prev,
+                                            busca: e.target.value,
+                                        }))
+                                    }
+                                    fullWidth
+                                />
+
+                                <FormControl fullWidth>
+                                    <InputLabel>Status</InputLabel>
+                                    <Select
+                                        label="Status"
+                                        value={filters.status}
+                                        onChange={(e) =>
+                                            setFilters((prev) => ({
+                                                ...prev,
+                                                status: e.target.value,
+                                            }))
                                         }
-                                        label="Incluir canceladas"
-                                    />
-                                </Stack>
-                            </Grid>
+                                    >
+                                        <MenuItem value="TODAS">Todas</MenuItem>
+                                        <MenuItem value="ATIVA">ATIVA</MenuItem>
+                                        <MenuItem value="CANCELADA">CANCELADA</MenuItem>
+                                    </Select>
+                                </FormControl>
 
-                            {/* Lado direito */}
-                            <Grid item xs={12} md={6}>
-                                <Stack
-                                    direction="row"
-                                    spacing={2}
-                                    justifyContent={{ xs: "flex-start", md: "flex-end" }}
+                                <TextField
+                                    label="Valor mín."
+                                    type="number"
+                                    value={filters.valorMin}
+                                    onChange={(e) =>
+                                        setFilters((prev) => ({
+                                            ...prev,
+                                            valorMin: e.target.value,
+                                        }))
+                                    }
+                                    inputProps={{ min: 0, step: 0.01 }}
+                                    fullWidth
+                                />
+
+                                <TextField
+                                    label="Valor máx."
+                                    type="number"
+                                    value={filters.valorMax}
+                                    onChange={(e) =>
+                                        setFilters((prev) => ({
+                                            ...prev,
+                                            valorMax: e.target.value,
+                                        }))
+                                    }
+                                    inputProps={{ min: 0, step: 0.01 }}
+                                    fullWidth
+                                />
+
+                                <TextField
+                                    label="Data inicial"
+                                    type="date"
+                                    value={filters.dataInicial}
+                                    onChange={(e) =>
+                                        setFilters((prev) => ({
+                                            ...prev,
+                                            dataInicial: e.target.value,
+                                        }))
+                                    }
+                                    InputLabelProps={{ shrink: true }}
+                                    fullWidth
+                                />
+
+                                <TextField
+                                    label="Data final"
+                                    type="date"
+                                    value={filters.dataFinal}
+                                    onChange={(e) =>
+                                        setFilters((prev) => ({
+                                            ...prev,
+                                            dataFinal: e.target.value,
+                                        }))
+                                    }
+                                    InputLabelProps={{ shrink: true }}
+                                    fullWidth
+                                />
+
+                                <Button
+                                    variant="text"
+                                    onClick={() => setFilters(emptyFilters)}
+                                    sx={{
+                                        height: 56,
+                                        minWidth: 100,
+                                        whiteSpace: "nowrap",
+                                        justifySelf: { xs: "start", xl: "center" },
+                                    }}
                                 >
-                                    <Button variant="outlined">Importar</Button>
-                                    <Button variant="outlined">Exportar XLSX</Button>
-                                    <Button variant="outlined">Exportar PDF</Button>
-                                </Stack>
-                            </Grid>
-                        </Grid>
+                                    Limpar
+                                </Button>
+                            </Box>
+                        </Stack>
                     </Paper>
                 </Grid>
 
                 {error && (
-                    <Grid item xs={12}>
+                    <Grid item xs={12} sx={pageContentSx}>
                         <Alert severity="error">{error}</Alert>
                     </Grid>
                 )}
 
-                {/* Tabela */}
-                <Grid item xs={12}>
-                    <Paper sx={{ p: 2, minHeight: "72vh" }}>
+                <Grid item xs={12} sx={pageContentSx}>
+                    <Paper
+                        sx={{
+                            p: 2,
+                            minHeight: "72vh",
+                            borderRadius: 3,
+                            width: "100%",
+                            overflow: "hidden",
+                        }}
+                    >
                         {loading ? (
                             <Stack alignItems="center" py={6}>
                                 <CircularProgress />
                             </Stack>
                         ) : (
-                            <TableContainer sx={{ height: "72vh" }}>
-                                <Table stickyHeader size="small">
+                            <TableContainer
+                                sx={{
+                                    height: "72vh",
+                                    width: "100%",
+                                }}
+                            >
+                                <Table stickyHeader size="small" sx={{ width: "100%" }}>
                                     <TableHead>
                                         <TableRow>
-                                            <TableCell><b>#</b></TableCell>
-                                            <TableCell><b>Data</b></TableCell>
-                                            <TableCell><b>Cliente</b></TableCell>
-                                            <TableCell><b>Itens</b></TableCell>
-                                            <TableCell align="right"><b>Total</b></TableCell>
-                                            <TableCell align="center"><b>Status</b></TableCell>
-                                            <TableCell align="center"><b>Ações</b></TableCell>
+                                            <TableCell>
+                                                <b>#</b>
+                                            </TableCell>
+                                            <TableCell>
+                                                <b>Data</b>
+                                            </TableCell>
+                                            <TableCell>
+                                                <b>Cliente</b>
+                                            </TableCell>
+                                            <TableCell>
+                                                <b>Itens</b>
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                <b>Total</b>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <b>Status</b>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <b>Ações</b>
+                                            </TableCell>
                                         </TableRow>
                                     </TableHead>
 
@@ -513,7 +768,9 @@ export default function Vendas() {
                                                         {v.nomeCliente || getClienteNome(v.clienteId)}
                                                     </TableCell>
                                                     <TableCell>{itensCount}</TableCell>
-                                                    <TableCell align="right">{money(v.valorTotal)}</TableCell>
+                                                    <TableCell align="right">
+                                                        {money(v.valorTotal)}
+                                                    </TableCell>
                                                     <TableCell align="center">{statusChip(v)}</TableCell>
 
                                                     <TableCell align="center">
@@ -523,15 +780,22 @@ export default function Vendas() {
                                                             </IconButton>
                                                         </Tooltip>
 
-                                                        <Tooltip title={ativa ? "Editar" : "Venda cancelada"}>
+                                                        <Tooltip
+                                                            title={ativa ? "Editar" : "Venda cancelada"}
+                                                        >
                                                             <span>
-                                                                <IconButton onClick={() => openEdit(v)} disabled={!ativa}>
+                                                                <IconButton
+                                                                    onClick={() => openEdit(v)}
+                                                                    disabled={!ativa}
+                                                                >
                                                                     <EditIcon />
                                                                 </IconButton>
                                                             </span>
                                                         </Tooltip>
 
-                                                        <Tooltip title={ativa ? "Cancelar venda" : "Já cancelada"}>
+                                                        <Tooltip
+                                                            title={ativa ? "Cancelar venda" : "Já cancelada"}
+                                                        >
                                                             <span>
                                                                 <IconButton
                                                                     color="warning"
@@ -550,8 +814,12 @@ export default function Vendas() {
                                         {vendasFiltradas.length === 0 && (
                                             <TableRow>
                                                 <TableCell colSpan={7}>
-                                                    <Typography align="center" color="text.secondary" py={3}>
-                                                        Nenhuma venda encontrada
+                                                    <Typography
+                                                        align="center"
+                                                        color="text.secondary"
+                                                        py={3}
+                                                    >
+                                                        Nenhuma venda encontrada para os filtros informados
                                                     </Typography>
                                                 </TableCell>
                                             </TableRow>
@@ -564,7 +832,6 @@ export default function Vendas() {
                 </Grid>
             </Grid>
 
-            {/* Modal Criar/Editar */}
             <Dialog
                 open={openForm}
                 onClose={handleCloseForm}
@@ -578,7 +845,6 @@ export default function Vendas() {
 
                 <DialogContent dividers sx={{ p: 3 }}>
                     <Stack spacing={2}>
-                        {/* Dados do cliente */}
                         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                             <Grid container spacing={2}>
                                 <Grid item xs={12} md={6}>
@@ -587,8 +853,8 @@ export default function Vendas() {
                                         size="medium"
                                         sx={{
                                             width: "100%",
-                                            minWidth: 420,        // 👈 força ficar grande
-                                            flex: 1,              // 👈 se tiver flex, ele expande
+                                            minWidth: 420,
+                                            flex: 1,
                                         }}
                                     >
                                         <InputLabel>Cliente</InputLabel>
@@ -611,7 +877,9 @@ export default function Vendas() {
                                     <TextField
                                         label="Telefone"
                                         value={form.fone}
-                                        onChange={(e) => setForm((f) => ({ ...f, fone: e.target.value }))}
+                                        onChange={(e) =>
+                                            setForm((f) => ({ ...f, fone: e.target.value }))
+                                        }
                                         fullWidth
                                     />
                                 </Grid>
@@ -620,7 +888,9 @@ export default function Vendas() {
                                     <TextField
                                         label="Rua"
                                         value={form.rua}
-                                        onChange={(e) => setForm((f) => ({ ...f, rua: e.target.value }))}
+                                        onChange={(e) =>
+                                            setForm((f) => ({ ...f, rua: e.target.value }))
+                                        }
                                         fullWidth
                                     />
                                 </Grid>
@@ -629,7 +899,9 @@ export default function Vendas() {
                                     <TextField
                                         label="Bairro"
                                         value={form.bairro}
-                                        onChange={(e) => setForm((f) => ({ ...f, bairro: e.target.value }))}
+                                        onChange={(e) =>
+                                            setForm((f) => ({ ...f, bairro: e.target.value }))
+                                        }
                                         fullWidth
                                     />
                                 </Grid>
@@ -638,7 +910,9 @@ export default function Vendas() {
                                     <TextField
                                         label="Observação"
                                         value={form.observacao}
-                                        onChange={(e) => setForm((f) => ({ ...f, observacao: e.target.value }))}
+                                        onChange={(e) =>
+                                            setForm((f) => ({ ...f, observacao: e.target.value }))
+                                        }
                                         fullWidth
                                         multiline
                                         minRows={2}
@@ -649,8 +923,11 @@ export default function Vendas() {
 
                         <Divider />
 
-                        {/* Itens */}
-                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            alignItems="center"
+                        >
                             <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
                                 Itens da venda
                             </Typography>
@@ -678,7 +955,6 @@ export default function Vendas() {
                                             }}
                                         >
                                             <Grid container spacing={2} alignItems="center">
-                                                {/* Categoria */}
                                                 <Grid item xs={12} md={4}>
                                                     <FormControl
                                                         fullWidth
@@ -689,7 +965,9 @@ export default function Vendas() {
                                                         <Select
                                                             label="Categoria"
                                                             value={it.categoriaId}
-                                                            onChange={(e) => handleCategoriaChange(idx, e.target.value)}
+                                                            onChange={(e) =>
+                                                                handleCategoriaChange(idx, e.target.value)
+                                                            }
                                                             sx={{ width: "100%" }}
                                                         >
                                                             {categorias.map((c) => (
@@ -699,22 +977,22 @@ export default function Vendas() {
                                                             ))}
                                                         </Select>
                                                     </FormControl>
-
                                                 </Grid>
 
-                                                {/* Produto */}
                                                 <Grid item xs={12} md={8}>
                                                     <FormControl
                                                         fullWidth
                                                         size="medium"
                                                         disabled={!it.categoriaId}
-                                                        sx={{ width: "100%", minWidth: 520, flex: 2 }}  // 👈 bem maior que categoria
+                                                        sx={{ width: "100%", minWidth: 520, flex: 2 }}
                                                     >
                                                         <InputLabel>Produto</InputLabel>
                                                         <Select
                                                             label="Produto"
                                                             value={it.produtoId}
-                                                            onChange={(e) => handleProdutoChange(idx, e.target.value)}
+                                                            onChange={(e) =>
+                                                                handleProdutoChange(idx, e.target.value)
+                                                            }
                                                             sx={{ width: "100%" }}
                                                         >
                                                             {listaProdutos.map((p) => (
@@ -724,10 +1002,8 @@ export default function Vendas() {
                                                             ))}
                                                         </Select>
                                                     </FormControl>
-
                                                 </Grid>
 
-                                                {/* Qtd / Un / Preço / Total / Remover */}
                                                 <Grid item xs={12} md={2}>
                                                     <TextField
                                                         label="Qtd"
@@ -759,7 +1035,9 @@ export default function Vendas() {
                                                         inputProps={{ min: 0, step: 0.01 }}
                                                         value={it.precoUnitario}
                                                         onChange={(e) =>
-                                                            updateItem(idx, { precoUnitario: e.target.value })
+                                                            updateItem(idx, {
+                                                                precoUnitario: e.target.value,
+                                                            })
                                                         }
                                                         fullWidth
                                                     />
@@ -787,7 +1065,6 @@ export default function Vendas() {
                                                     </Button>
                                                 </Grid>
 
-                                                {/* Bitola / Comprimento */}
                                                 <Grid item xs={12} md={6}>
                                                     <TextField
                                                         label="Bitola"
@@ -816,7 +1093,6 @@ export default function Vendas() {
                             </Stack>
                         </Paper>
 
-                        {/* Totais */}
                         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                             <Grid container spacing={2}>
                                 <Grid item xs={12} md={3}>
@@ -870,6 +1146,162 @@ export default function Vendas() {
                                 </Grid>
                             </Grid>
                         </Paper>
+
+                        <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                            <Stack spacing={2}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
+                                    Financeiro / Pagamento
+                                </Typography>
+
+                                <Grid container spacing={2}>
+                                    <Grid item xs={12} md={4}>
+                                        <FormControl
+                                            fullWidth
+                                            size="medium"
+                                            sx={{
+                                                width: "100%",
+                                                minWidth: 320,
+                                                flex: 1,
+                                            }}
+                                        >
+                                            <InputLabel>Categoria financeira</InputLabel>
+                                            <Select
+                                                label="Categoria financeira"
+                                                value={form.categoriaFinanceiraId}
+                                                onChange={(e) =>
+                                                    setForm((f) => ({
+                                                        ...f,
+                                                        categoriaFinanceiraId: e.target.value,
+                                                    }))
+                                                }
+                                                sx={{ width: "100%" }}
+                                            >
+                                                {categoriasFinanceiras.map((cat) => (
+                                                    <MenuItem key={cat.id} value={cat.id}>
+                                                        {cat.nome}
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                    </Grid>
+
+                                    <Grid item xs={12} md={4}>
+                                        <FormControl
+                                            fullWidth
+                                            size="medium"
+                                            sx={{
+                                                width: "100%",
+                                                minWidth: 320,
+                                                flex: 1,
+                                            }}
+                                        >
+                                            <InputLabel>Forma de pagamento</InputLabel>
+                                            <Select
+                                                label="Forma de pagamento"
+                                                value={form.formaPagamentoId}
+                                                onChange={(e) =>
+                                                    setForm((f) => ({
+                                                        ...f,
+                                                        formaPagamentoId: e.target.value,
+                                                    }))
+                                                }
+                                                sx={{ width: "100%" }}
+                                            >
+                                                {formasPagamento.map((fp) => (
+                                                    <MenuItem key={fp.id} value={fp.id}>
+                                                        {fp.tipo}
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                    </Grid>
+
+                                    <Grid item xs={12} md={4}>
+                                        <TextField
+                                            label="Descrição do título"
+                                            value={form.descricaoTitulo}
+                                            onChange={(e) =>
+                                                setForm((f) => ({
+                                                    ...f,
+                                                    descricaoTitulo: e.target.value,
+                                                }))
+                                            }
+                                            fullWidth
+                                            sx={{
+                                                width: "100%",
+                                                minWidth: 320,
+                                                flex: 1,
+                                            }}
+                                            placeholder="Ex: Venda balcão - cliente João"
+                                        />
+                                    </Grid>
+
+                                    <Grid item xs={12} md={4}>
+                                        <TextField
+                                            label="Número de parcelas"
+                                            type="number"
+                                            inputProps={{ min: 1 }}
+                                            value={form.numeroParcelas}
+                                            onChange={(e) =>
+                                                setForm((f) => ({
+                                                    ...f,
+                                                    numeroParcelas: e.target.value,
+                                                }))
+                                            }
+                                            fullWidth
+                                            sx={{
+                                                width: "100%",
+                                                minWidth: 200,
+                                                flex: 1,
+                                            }}
+                                        />
+                                    </Grid>
+
+                                    <Grid item xs={12} md={4}>
+                                        <TextField
+                                            label="Primeiro vencimento"
+                                            type="date"
+                                            value={form.primeiroVencimento}
+                                            onChange={(e) =>
+                                                setForm((f) => ({
+                                                    ...f,
+                                                    primeiroVencimento: e.target.value,
+                                                }))
+                                            }
+                                            fullWidth
+                                            sx={{
+                                                width: "100%",
+                                                minWidth: 220,
+                                                flex: 1,
+                                            }}
+                                            InputLabelProps={{ shrink: true }}
+                                        />
+                                    </Grid>
+
+                                    <Grid item xs={12} md={4}>
+                                        <TextField
+                                            label="Intervalo entre parcelas (dias)"
+                                            type="number"
+                                            inputProps={{ min: 1 }}
+                                            value={form.intervaloDias}
+                                            onChange={(e) =>
+                                                setForm((f) => ({
+                                                    ...f,
+                                                    intervaloDias: e.target.value,
+                                                }))
+                                            }
+                                            fullWidth
+                                            sx={{
+                                                width: "100%",
+                                                minWidth: 200,
+                                                flex: 1,
+                                            }}
+                                            disabled={Number(form.numeroParcelas || 1) <= 1}
+                                        />
+                                    </Grid>
+                                </Grid>
+                            </Stack>
+                        </Paper>
                     </Stack>
                 </DialogContent>
 
@@ -883,7 +1315,6 @@ export default function Vendas() {
                 </DialogActions>
             </Dialog>
 
-            {/* Modal Detalhes */}
             <Dialog open={openDetails} onClose={closeView} maxWidth="md" fullWidth>
                 <DialogTitle>Detalhes da venda</DialogTitle>
                 <DialogContent dividers>
@@ -893,47 +1324,73 @@ export default function Vendas() {
                         <Stack spacing={2}>
                             <Grid container spacing={2}>
                                 <Grid item xs={12} md={4}>
-                                    <Typography variant="body2" color="text.secondary">Venda</Typography>
-                                    <Typography sx={{ fontWeight: 800 }}>#{details.id}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Venda
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        #{details.id}
+                                    </Typography>
                                 </Grid>
 
                                 <Grid item xs={12} md={4}>
-                                    <Typography variant="body2" color="text.secondary">Data</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Data
+                                    </Typography>
                                     <Typography sx={{ fontWeight: 800 }}>
                                         {dateTimeBR(details.dataDaVenda)}
                                     </Typography>
                                 </Grid>
 
                                 <Grid item xs={12} md={4}>
-                                    <Typography variant="body2" color="text.secondary">Status</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Status
+                                    </Typography>
                                     {statusChip(details)}
                                 </Grid>
 
                                 <Grid item xs={12} md={6}>
-                                    <Typography variant="body2" color="text.secondary">Cliente</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Cliente
+                                    </Typography>
                                     <Typography sx={{ fontWeight: 800 }}>
                                         {details.nomeCliente || getClienteNome(details.clienteId)}
                                     </Typography>
                                 </Grid>
 
                                 <Grid item xs={12} md={6}>
-                                    <Typography variant="body2" color="text.secondary">Telefone</Typography>
-                                    <Typography sx={{ fontWeight: 800 }}>{details.fone || "-"}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Telefone
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.fone || "-"}
+                                    </Typography>
                                 </Grid>
 
                                 <Grid item xs={12} md={6}>
-                                    <Typography variant="body2" color="text.secondary">Rua</Typography>
-                                    <Typography sx={{ fontWeight: 800 }}>{details.rua || "-"}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Rua
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.rua || "-"}
+                                    </Typography>
                                 </Grid>
 
                                 <Grid item xs={12} md={6}>
-                                    <Typography variant="body2" color="text.secondary">Bairro</Typography>
-                                    <Typography sx={{ fontWeight: 800 }}>{details.bairro || "-"}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Bairro
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.bairro || "-"}
+                                    </Typography>
                                 </Grid>
 
                                 <Grid item xs={12}>
-                                    <Typography variant="body2" color="text.secondary">Observação</Typography>
-                                    <Typography sx={{ fontWeight: 700 }}>{details.observacao || "-"}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Observação
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 700 }}>
+                                        {details.observacao || "-"}
+                                    </Typography>
                                 </Grid>
                             </Grid>
 
@@ -946,24 +1403,44 @@ export default function Vendas() {
                             <Table size="small">
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell><b>Produto</b></TableCell>
-                                        <TableCell><b>Bitola</b></TableCell>
-                                        <TableCell><b>Comp.</b></TableCell>
-                                        <TableCell align="right"><b>Qtd</b></TableCell>
-                                        <TableCell align="right"><b>Preço Unit.</b></TableCell>
-                                        <TableCell align="right"><b>Total</b></TableCell>
+                                        <TableCell>
+                                            <b>Produto</b>
+                                        </TableCell>
+                                        <TableCell>
+                                            <b>Bitola</b>
+                                        </TableCell>
+                                        <TableCell>
+                                            <b>Comp.</b>
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            <b>Qtd</b>
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            <b>Preço Unit.</b>
+                                        </TableCell>
+                                        <TableCell align="right">
+                                            <b>Total</b>
+                                        </TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {(details.itens || []).map((it, idx) => (
                                         <TableRow key={idx}>
-                                            <TableCell>{it.descricaoProduto || `#${it.produtoId}`}</TableCell>
+                                            <TableCell>
+                                                {it.descricaoProduto || `#${it.produtoId}`}
+                                            </TableCell>
                                             <TableCell>{it.bitola || "-"}</TableCell>
                                             <TableCell>{it.comprimento || "-"}</TableCell>
                                             <TableCell align="right">{it.quantidade || 0}</TableCell>
-                                            <TableCell align="right">{money(it.precoUnitario)}</TableCell>
                                             <TableCell align="right">
-                                                {money(it.total ?? (Number(it.quantidade || 0) * Number(it.precoUnitario || 0)))}
+                                                {money(it.precoUnitario)}
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                {money(
+                                                    it.total ??
+                                                    Number(it.quantidade || 0) *
+                                                    Number(it.precoUnitario || 0)
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -974,21 +1451,99 @@ export default function Vendas() {
 
                             <Grid container spacing={2}>
                                 <Grid item xs={12} md={3}>
-                                    <Typography variant="body2" color="text.secondary">Desconto</Typography>
-                                    <Typography sx={{ fontWeight: 900 }}>{money(details.desconto)}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Desconto
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 900 }}>
+                                        {money(details.desconto)}
+                                    </Typography>
                                 </Grid>
                                 <Grid item xs={12} md={3}>
-                                    <Typography variant="body2" color="text.secondary">Adicional</Typography>
-                                    <Typography sx={{ fontWeight: 900 }}>{money(details.adicional)}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Adicional
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 900 }}>
+                                        {money(details.adicional)}
+                                    </Typography>
                                 </Grid>
                                 <Grid item xs={12} md={3}>
-                                    <Typography variant="body2" color="text.secondary">Frete</Typography>
-                                    <Typography sx={{ fontWeight: 900 }}>{money(details.frete)}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Frete
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 900 }}>
+                                        {money(details.frete)}
+                                    </Typography>
                                 </Grid>
                                 <Grid item xs={12} md={3}>
-                                    <Typography variant="body2" color="text.secondary">Total</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Total
+                                    </Typography>
                                     <Typography variant="h6" sx={{ fontWeight: 900 }}>
                                         {money(details.valorTotal)}
+                                    </Typography>
+                                </Grid>
+                            </Grid>
+
+                            <Divider />
+
+                            <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>
+                                Financeiro
+                            </Typography>
+
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Categoria financeira
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.categoriaFinanceiraId || "-"}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Forma de pagamento
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.formaPagamentoId || "-"}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Número de parcelas
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.numeroParcelas || "-"}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Primeiro vencimento
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.primeiroVencimento || "-"}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Intervalo entre parcelas
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.intervaloDias
+                                            ? `${details.intervaloDias} dia(s)`
+                                            : "-"}
+                                    </Typography>
+                                </Grid>
+
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Descrição do título
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 800 }}>
+                                        {details.descricaoTitulo || "-"}
                                     </Typography>
                                 </Grid>
                             </Grid>
