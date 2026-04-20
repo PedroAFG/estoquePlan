@@ -1,5 +1,6 @@
 import API_CONFIG from '../config/api';
 
+
 class ApiService {
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL;
@@ -289,14 +290,13 @@ class ApiService {
   // Método para fazer requisições autenticadas
   async authenticatedRequest(url, options = {}) {
     const defaultOptions = {
-      credentials: 'include', // Sempre incluir cookies
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
     };
 
-    // Se não há Content-Type nos headers, remover do defaultOptions
     if (options.headers && !options.headers['Content-Type']) {
       delete defaultOptions.headers['Content-Type'];
     }
@@ -307,9 +307,21 @@ class ApiService {
     });
 
     if (response.status === 401) {
-      // Token expirado ou inválido - redirecionar para login
       this.handleUnauthorized();
       throw new Error('Token expirado ou inválido');
+    }
+
+    if (!response.ok) {
+      let mensagem = "Erro na requisição";
+
+      try {
+        const errorData = await response.json();
+        mensagem = errorData?.message || mensagem;
+      } catch (e) {
+        // caso não venha JSON
+      }
+
+      throw new Error(mensagem);
     }
 
     return response;
@@ -403,15 +415,17 @@ class ApiService {
   // ======================
   // CADASTROS FINANCEIROS
   // ======================
-  async getCategoriasFinanceiras() {
-    const response = await this.authenticatedRequest('/categoriasFinanceiras');
+  async getCategoriasFinanceiras({ incluirInativos = false } = {}) {
+    const query = incluirInativos ? "?incluirInativos=true" : "";
+    const response = await this.authenticatedRequest(`/categoriasFinanceiras${query}`);
     if (!response.ok) throw new Error('Erro ao buscar categorias financeiras');
     return await response.json();
   }
 
-  async getFormasPagamento() {
-    const response = await this.authenticatedRequest('/formaPagamento');
-    if (!response.ok) throw new Error('Erro ao buscar formas de pagamento');
+  async getFormasPagamento({ incluirInativos = false } = {}) {
+    const query = incluirInativos ? "?incluirInativos=true" : "";
+    const response = await this.authenticatedRequest(`/formaPagamento${query}`);
+    if (!response.ok) throw new Error("Erro ao buscar formas de pagamento");
     return await response.json();
   }
 
@@ -441,10 +455,9 @@ class ApiService {
   }
 
   async deleteCliente(id) {
-    const response = await this.authenticatedRequest(`/clientes/${id}`, {
+    await this.authenticatedRequest(`/clientes/${id}`, {
       method: "DELETE",
     });
-    if (!response.ok) throw new Error("Erro ao deletar cliente");
     return true;
   }
 
@@ -567,6 +580,101 @@ class ApiService {
     });
     if (!response.ok) throw new Error("Erro ao ativar forma de pagamento");
     return true;
+  }
+
+  /*---------CADASTRO USUÁRIOS-----------*/
+  async getUsuarios() {
+    try {
+      const response = await this.authenticatedRequest('/usuarios');
+
+      if (!response.ok) {
+        throw new Error('Erro ao buscar usuários');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getUsuarioById(id) {
+    try {
+      const response = await this.authenticatedRequest(`/usuarios/${id}`);
+
+      if (!response.ok) {
+        throw new Error('Erro ao buscar usuário');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async createUsuario(payload) {
+    try {
+      const response = await this.authenticatedRequest('/usuarios', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao criar usuário');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async updateUsuario(id, payload) {
+    try {
+      const response = await this.authenticatedRequest(`/usuarios/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar usuário');
+      }
+
+      return await response.json();
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async inativarUsuario(id) {
+    try {
+      const response = await this.authenticatedRequest(`/usuarios/${id}/inativar`, {
+        method: 'PATCH',
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao inativar usuário');
+      }
+
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async ativarUsuario(id) {
+    try {
+      const response = await this.authenticatedRequest(`/usuarios/${id}/ativar`, {
+        method: 'PATCH',
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao ativar usuário');
+      }
+
+      return true;
+    } catch (error) {
+      throw error;
+    }
   }
 
   // Método para lidar com erro 401

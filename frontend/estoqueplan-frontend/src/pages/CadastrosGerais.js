@@ -21,6 +21,7 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import PaymentsIcon from "@mui/icons-material/Payments";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import AddIcon from "@mui/icons-material/Add";
+import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 
 export default function CadastrosGerais() {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ export default function CadastrosGerais() {
   const [categorias, setCategorias] = useState([]);
   const [categoriasFinanceiras, setCategoriasFinanceiras] = useState([]);
   const [formasPagamento, setFormasPagamento] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
 
   useEffect(() => {
     const carregarResumo = async () => {
@@ -44,17 +46,20 @@ export default function CadastrosGerais() {
           dataCategorias,
           dataCategoriasFinanceiras,
           dataFormasPagamento,
+          dataUsuarios,
         ] = await Promise.all([
-          apiService.getClientes(),
-          apiService.getCategorias(),
-          apiService.getCategoriasFinanceiras(),
-          apiService.getFormasPagamento(),
+          apiService.getClientes({ incluirInativos: true }),
+          apiService.getCategorias({ incluirInativos: true }),
+          apiService.getCategoriasFinanceiras({ incluirInativos: true }),
+          apiService.getFormasPagamento({ incluirInativos: true }),
+          apiService.getUsuarios({ incluirInativos: true }),
         ]);
 
         setClientes(dataClientes || []);
         setCategorias(dataCategorias || []);
         setCategoriasFinanceiras(dataCategoriasFinanceiras || []);
         setFormasPagamento(dataFormasPagamento || []);
+        setUsuarios(dataUsuarios || []);
       } catch (e) {
         setError(e?.message || "Erro ao carregar os cadastros gerais");
       } finally {
@@ -65,8 +70,11 @@ export default function CadastrosGerais() {
     carregarResumo();
   }, []);
 
-  const contarAtivos = (lista) => (lista || []).filter((item) => item?.ativo !== false).length;
-  const contarInativos = (lista) => (lista || []).filter((item) => item?.ativo === false).length;
+  const contarAtivos = (lista) =>
+    (lista || []).filter((item) => item?.ativo !== false).length;
+
+  const contarInativos = (lista) =>
+    (lista || []).filter((item) => item?.ativo === false).length;
 
   const cards = [
     {
@@ -77,6 +85,15 @@ export default function CadastrosGerais() {
       ativos: contarAtivos(clientes),
       inativos: contarInativos(clientes),
       rota: "/cadastros/clientes",
+    },
+    {
+      titulo: "Usuários",
+      descricao: "Gerencie os usuários do sistema e suas permissões de acesso.",
+      icone: <ManageAccountsIcon fontSize="large" />,
+      total: usuarios.length,
+      ativos: contarAtivos(usuarios),
+      inativos: contarInativos(usuarios),
+      rota: "/cadastros/usuarios",
     },
     {
       titulo: "Categorias",
@@ -172,16 +189,32 @@ export default function CadastrosGerais() {
                       <Typography variant="h6" sx={{ fontWeight: 800 }}>
                         {card.titulo}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mt: 0.5 }}
+                      >
                         {card.descricao}
                       </Typography>
                     </Box>
 
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                      <Chip label={`${card.total} cadastrados`} color="primary" variant="outlined" />
-                      <Chip label={`${card.ativos} ativos`} color="success" variant="outlined" />
+                      <Chip
+                        label={`${card.total} cadastrados`}
+                        color="primary"
+                        variant="outlined"
+                      />
+                      <Chip
+                        label={`${card.ativos} ativos`}
+                        color="success"
+                        variant="outlined"
+                      />
                       {card.inativos > 0 && (
-                        <Chip label={`${card.inativos} inativos`} color="warning" variant="outlined" />
+                        <Chip
+                          label={`${card.inativos} inativos`}
+                          color="warning"
+                          variant="outlined"
+                        />
                       )}
                     </Stack>
                   </Stack>

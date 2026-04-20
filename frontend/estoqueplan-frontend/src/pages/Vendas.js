@@ -22,6 +22,7 @@ import {
     DialogActions,
     TextField,
     FormControl,
+    FormHelperText,
     InputLabel,
     Select,
     MenuItem,
@@ -33,34 +34,38 @@ import {
     Box,
 } from "@mui/material";
 
+import {
+    money,
+    dateTimeBR,
+    buildVendaParaImpressao,
+    gerarHtmlComprovanteVenda,
+    imprimirHtml,
+} from "../utils/vendaPrint";
+
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import BlockIcon from "@mui/icons-material/Block";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import PrintIcon from "@mui/icons-material/Print";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 
 import apiService from "../services/api";
-
-function money(v) {
-    return Number(v || 0).toLocaleString("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-    });
-}
-
-function dateTimeBR(iso) {
-    if (!iso) return "-";
-    try {
-        return new Date(iso).toLocaleString("pt-BR");
-    } catch {
-        return "-";
-    }
-}
 
 const emptyItem = {
     categoriaId: "",
     produtoId: "",
-    quantidade: 1,
+    quantidade: "",
     unidade: "un",
+    bitola: "",
+    comprimento: "",
+    precoUnitario: "",
+};
+
+const emptyItemErrors = {
+    categoriaId: "",
+    produtoId: "",
+    quantidade: "",
+    unidade: "",
     bitola: "",
     comprimento: "",
     precoUnitario: "",
@@ -85,6 +90,24 @@ const emptyForm = {
     descricaoTitulo: "",
 };
 
+const emptyFormErrors = {
+    clienteId: "",
+    rua: "",
+    bairro: "",
+    fone: "",
+    observacao: "",
+    desconto: "",
+    adicional: "",
+    frete: "",
+    categoriaFinanceiraId: "",
+    formaPagamentoId: "",
+    numeroParcelas: "",
+    primeiroVencimento: "",
+    intervaloDias: "",
+    descricaoTitulo: "",
+    itens: [{ ...emptyItemErrors }],
+};
+
 const emptyFilters = {
     busca: "",
     status: "TODAS",
@@ -102,8 +125,15 @@ export default function Vendas() {
     const [categoriasFinanceiras, setCategoriasFinanceiras] = useState([]);
     const [formasPagamento, setFormasPagamento] = useState([]);
 
+    const [openPrintPrompt, setOpenPrintPrompt] = useState(false);
+    const [saleToPrint, setSaleToPrint] = useState(null);
+
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+
+    const [pageError, setPageError] = useState("");
+    const [pageSuccess, setPageSuccess] = useState("");
+    const [formError, setFormError] = useState("");
+    const [detailsError, setDetailsError] = useState("");
 
     const [incluirCanceladas, setIncluirCanceladas] = useState(false);
     const [filters, setFilters] = useState(emptyFilters);
@@ -111,6 +141,7 @@ export default function Vendas() {
     const [openForm, setOpenForm] = useState(false);
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState(emptyForm);
+    const [formErrors, setFormErrors] = useState(emptyFormErrors);
 
     const [openDetails, setOpenDetails] = useState(false);
     const [details, setDetails] = useState(null);
@@ -129,7 +160,7 @@ export default function Vendas() {
     const loadData = async () => {
         try {
             setLoading(true);
-            setError("");
+            setPageError("");
 
             const [
                 vendasData,
@@ -160,7 +191,7 @@ export default function Vendas() {
             );
             setProdutos(ativos);
         } catch (e) {
-            setError(e?.message || "Erro ao carregar dados");
+            setPageError(e?.message || "Erro ao carregar dados");
         } finally {
             setLoading(false);
         }
@@ -253,18 +284,6 @@ export default function Vendas() {
             );
     }, [vendas, incluirCanceladas, filters, clientes]);
 
-    const handleClienteChange = (clienteId) => {
-        const c = getClienteById(clienteId);
-
-        setForm((f) => ({
-            ...f,
-            clienteId,
-            fone: c?.telefone || f.fone || "",
-            rua: c?.endereco || f.rua || "",
-            bairro: f.bairro || "",
-        }));
-    };
-
     const calcItemTotal = (item) => {
         const qtd = Number(item.quantidade || 0);
         const pu = Number(item.precoUnitario || 0);
@@ -284,24 +303,44 @@ export default function Vendas() {
         return subtotal - descontoNum + adicionalNum + freteNum;
     }, [subtotal, descontoNum, adicionalNum, freteNum]);
 
+    const buildEmptyItemErrorsList = (itens) =>
+        (itens || []).map(() => ({ ...emptyItemErrors }));
+
     const handleCloseForm = () => {
         setOpenForm(false);
         setEditing(null);
         setForm(emptyForm);
+        setFormErrors(emptyFormErrors);
+        setFormError("");
     };
 
     const openCreate = () => {
         setEditing(null);
         setForm(emptyForm);
+        setFormErrors(emptyFormErrors);
+        setFormError("");
         setOpenForm(true);
     };
 
     const openEdit = (v) => {
         const st = v.status || "ATIVA";
         if (st !== "ATIVA") {
-            setError("Venda cancelada não pode ser editada.");
+            setPageError("Venda cancelada não pode ser editada.");
             return;
         }
+
+        const itensForm = (v.itens || []).map((it) => {
+            const prod = produtos.find((p) => Number(p.id) === Number(it.produtoId));
+            return {
+                categoriaId: prod?.categoria?.id ?? "",
+                produtoId: it.produtoId ?? "",
+                quantidade: it.quantidade ?? "",
+                unidade: it.unidade ?? "un",
+                bitola: it.bitola ?? "",
+                comprimento: it.comprimento ?? "",
+                precoUnitario: it.precoUnitario ?? "",
+            };
+        });
 
         setEditing(v);
 
@@ -314,18 +353,7 @@ export default function Vendas() {
             desconto: v.desconto ?? "",
             adicional: v.adicional ?? "",
             frete: v.frete ?? "",
-            itens: (v.itens || []).map((it) => {
-                const prod = produtos.find((p) => Number(p.id) === Number(it.produtoId));
-                return {
-                    categoriaId: prod?.categoria?.id ?? "",
-                    produtoId: it.produtoId ?? "",
-                    quantidade: it.quantidade ?? 1,
-                    unidade: it.unidade ?? "un",
-                    bitola: it.bitola ?? "",
-                    comprimento: it.comprimento ?? "",
-                    precoUnitario: it.precoUnitario ?? "",
-                };
-            }),
+            itens: itensForm.length ? itensForm : [{ ...emptyItem }],
 
             categoriaFinanceiraId: v.categoriaFinanceiraId ?? "",
             formaPagamentoId: v.formaPagamentoId ?? "",
@@ -336,10 +364,19 @@ export default function Vendas() {
             descricaoTitulo: v.descricaoTitulo ?? "",
         });
 
+        setFormErrors({
+            ...emptyFormErrors,
+            itens: buildEmptyItemErrorsList(
+                itensForm.length ? itensForm : [{ ...emptyItem }]
+            ),
+        });
+
+        setFormError("");
         setOpenForm(true);
     };
 
     const openView = (v) => {
+        setDetailsError("");
         setDetails(v);
         setOpenDetails(true);
     };
@@ -347,6 +384,101 @@ export default function Vendas() {
     const closeView = () => {
         setOpenDetails(false);
         setDetails(null);
+        setDetailsError("");
+    };
+
+    const updateFormField = (campo, valor) => {
+        setForm((prev) => ({
+            ...prev,
+            [campo]: valor,
+        }));
+
+        setFormErrors((prev) => ({
+            ...prev,
+            [campo]: "",
+        }));
+
+        setFormError("");
+        setPageSuccess("");
+    };
+
+    const updateItemField = (idx, campo, valor) => {
+        setForm((prev) => {
+            const itens = [...(prev.itens || [])];
+            const itemAtual = {
+                ...itens[idx],
+                [campo]: valor,
+            };
+            itens[idx] = itemAtual;
+
+            return {
+                ...prev,
+                itens,
+            };
+        });
+
+        setFormErrors((prev) => {
+            const itensErrors = [...(prev.itens || [])];
+            const erroAtual = {
+                ...(itensErrors[idx] || { ...emptyItemErrors }),
+                [campo]: "",
+            };
+
+            const itemBase = form.itens?.[idx] || {};
+            const itemComNovoValor = {
+                ...itemBase,
+                [campo]: valor,
+            };
+
+            if (campo === "quantidade" || campo === "produtoId") {
+                const produto = getProduto(itemComNovoValor.produtoId);
+                const estoqueDisponivel = Number(produto?.quantidadeDisponivel ?? 0);
+                const quantidadeDigitada = Number(itemComNovoValor.quantidade);
+
+                if (String(itemComNovoValor.quantidade).trim() === "") {
+                    erroAtual.quantidade = "";
+                } else if (
+                    Number.isNaN(quantidadeDigitada) ||
+                    quantidadeDigitada <= 0
+                ) {
+                    erroAtual.quantidade = "Quantidade inválida.";
+                } else if (quantidadeDigitada > estoqueDisponivel) {
+                    erroAtual.quantidade = `Quantidade maior que o estoque disponível (${estoqueDisponivel}).`;
+                } else {
+                    erroAtual.quantidade = "";
+                }
+            }
+
+            itensErrors[idx] = erroAtual;
+
+            return {
+                ...prev,
+                itens: itensErrors,
+            };
+        });
+
+        setFormError("");
+        setPageSuccess("");
+    };
+
+    const handleClienteChange = (clienteId) => {
+        const c = getClienteById(clienteId);
+
+        setForm((f) => ({
+            ...f,
+            clienteId,
+            fone: c?.telefone || "",
+            rua: c?.endereco || "",
+            bairro: f.bairro || "",
+        }));
+
+        setFormErrors((prev) => ({
+            ...prev,
+            clienteId: "",
+        }));
+
+        setFormError("");
+        setPageSuccess("");
     };
 
     const addItem = () => {
@@ -354,6 +486,13 @@ export default function Vendas() {
             ...f,
             itens: [...(f.itens || []), { ...emptyItem }],
         }));
+
+        setFormErrors((prev) => ({
+            ...prev,
+            itens: [...(prev.itens || []), { ...emptyItemErrors }],
+        }));
+
+        setFormError("");
     };
 
     const removeItem = (idx) => {
@@ -362,85 +501,243 @@ export default function Vendas() {
             list.splice(idx, 1);
             return { ...f, itens: list.length ? list : [{ ...emptyItem }] };
         });
-    };
 
-    const updateItem = (idx, patch) => {
-        setForm((f) => {
-            const list = [...(f.itens || [])];
-            list[idx] = { ...list[idx], ...patch };
-            return { ...f, itens: list };
+        setFormErrors((prev) => {
+            const list = [...(prev.itens || [])];
+            list.splice(idx, 1);
+            return {
+                ...prev,
+                itens: list.length ? list : [{ ...emptyItemErrors }],
+            };
         });
+
+        setFormError("");
     };
 
     const produtosPorCategoria = (categoriaId) =>
         produtos.filter((p) => Number(p.categoria?.id) === Number(categoriaId));
 
     const handleCategoriaChange = (idx, categoriaId) => {
-        updateItem(idx, {
-            categoriaId,
-            produtoId: "",
-            unidade: "un",
-            precoUnitario: "",
+        setForm((prev) => {
+            const itens = [...(prev.itens || [])];
+            itens[idx] = {
+                ...itens[idx],
+                categoriaId,
+                produtoId: "",
+                unidade: "un",
+                precoUnitario: "",
+                quantidade: "",
+                bitola: "",
+                comprimento: "",
+            };
+            return {
+                ...prev,
+                itens,
+            };
         });
+
+        setFormErrors((prev) => {
+            const itensErrors = [...(prev.itens || [])];
+            itensErrors[idx] = {
+                ...(itensErrors[idx] || { ...emptyItemErrors }),
+                categoriaId: "",
+                produtoId: "",
+                precoUnitario: "",
+                quantidade: "",
+            };
+            return {
+                ...prev,
+                itens: itensErrors,
+            };
+        });
+
+        setFormError("");
+        setPageSuccess("");
     };
 
     const handleProdutoChange = (idx, produtoId) => {
         const prod = getProduto(produtoId);
-        updateItem(idx, {
-            produtoId,
-            unidade: prod?.unidade || "un",
+
+        setForm((prev) => {
+            const itens = [...(prev.itens || [])];
+            const quantidadeAtual = itens[idx]?.quantidade ?? "";
+
+            itens[idx] = {
+                ...itens[idx],
+                produtoId,
+                unidade: prod?.unidade || "un",
+                precoUnitario:
+                    prod?.precoVarejo !== undefined && prod?.precoVarejo !== null
+                        ? String(prod.precoVarejo)
+                        : "",
+                quantidade: quantidadeAtual,
+            };
+
+            return {
+                ...prev,
+                itens,
+            };
         });
+
+        setFormErrors((prev) => {
+            const itensErrors = [...(prev.itens || [])];
+            const quantidadeAtual = form.itens?.[idx]?.quantidade ?? "";
+            const estoqueDisponivel = Number(prod?.quantidadeDisponivel ?? 0);
+            const quantidadeNum = Number(quantidadeAtual);
+
+            let quantidadeErro = "";
+
+            if (
+                String(quantidadeAtual).trim() !== "" &&
+                !Number.isNaN(quantidadeNum) &&
+                quantidadeNum > estoqueDisponivel
+            ) {
+                quantidadeErro = `Quantidade maior que o estoque disponível (${estoqueDisponivel}).`;
+            }
+
+            itensErrors[idx] = {
+                ...(itensErrors[idx] || { ...emptyItemErrors }),
+                produtoId: "",
+                precoUnitario: "",
+                quantidade: quantidadeErro,
+            };
+
+            return {
+                ...prev,
+                itens: itensErrors,
+            };
+        });
+
+        setFormError("");
+        setPageSuccess("");
     };
 
     const validateForm = () => {
+        const novosErros = {
+            clienteId: "",
+            telefone: "",
+            rua: "",
+            bairro: "",
+            fone: "",
+            observacao: "",
+            desconto: "",
+            adicional: "",
+            frete: "",
+            categoriaFinanceiraId: "",
+            formaPagamentoId: "",
+            numeroParcelas: "",
+            primeiroVencimento: "",
+            intervaloDias: "",
+            descricaoTitulo: "",
+            itens: (form.itens || []).map(() => ({ ...emptyItemErrors })),
+        };
+
         const clienteId = Number(form.clienteId);
-        if (!clienteId) throw new Error("Selecione um cliente");
+        const categoriaFinanceiraId = Number(form.categoriaFinanceiraId);
+        const formaPagamentoId = Number(form.formaPagamentoId);
+        const numeroParcelas = Number(form.numeroParcelas);
+        const primeiroVencimento = String(form.primeiroVencimento || "").trim();
+        const intervaloDias = Number(form.intervaloDias);
+
+        if (!clienteId) {
+            novosErros.clienteId = "Selecione um cliente.";
+        }
+
+        if (!categoriaFinanceiraId) {
+            novosErros.categoriaFinanceiraId = "Selecione a categoria financeira.";
+        }
+
+        if (!formaPagamentoId) {
+            novosErros.formaPagamentoId = "Selecione a forma de pagamento.";
+        }
+
+        if (!numeroParcelas || numeroParcelas <= 0) {
+            novosErros.numeroParcelas = "Informe um número de parcelas válido.";
+        }
+
+        if (!primeiroVencimento) {
+            novosErros.primeiroVencimento = "Informe o primeiro vencimento.";
+        }
+
+        if (!intervaloDias || intervaloDias <= 0) {
+            novosErros.intervaloDias = "Informe um intervalo válido.";
+        }
 
         const itens = form.itens || [];
-        if (!itens.length) throw new Error("Adicione pelo menos 1 item");
-
-        if (!Number(form.categoriaFinanceiraId)) {
-            throw new Error("Selecione a categoria financeira");
-        }
-
-        if (!Number(form.formaPagamentoId)) {
-            throw new Error("Selecione a forma de pagamento");
-        }
-
-        const parcelas = Number(form.numeroParcelas);
-        if (!parcelas || parcelas <= 0) {
-            throw new Error("Número de parcelas inválido");
-        }
-
-        if (!form.primeiroVencimento) {
-            throw new Error("Informe o primeiro vencimento");
-        }
-
-        const intervalo = Number(form.intervaloDias);
-        if (!intervalo || intervalo <= 0) {
-            throw new Error("Intervalo entre parcelas inválido");
+        if (!itens.length) {
+            novosErros.itens = [{ ...emptyItemErrors }];
+            setFormErrors(novosErros);
+            setFormError("Adicione pelo menos 1 item.");
+            return false;
         }
 
         itens.forEach((it, i) => {
-            if (!Number(it.categoriaId))
-                throw new Error(`Selecione a categoria do item ${i + 1}`);
-            if (!Number(it.produtoId))
-                throw new Error(`Selecione o produto do item ${i + 1}`);
+            const categoriaId = Number(it.categoriaId);
+            const produtoId = Number(it.produtoId);
+            const quantidadeRaw = String(it.quantidade ?? "").trim();
+            const precoUnitarioRaw = String(it.precoUnitario ?? "").trim();
+            const produtoSelecionado = getProduto(produtoId);
+            const estoqueDisponivel = Number(produtoSelecionado?.quantidadeDisponivel ?? 0);
 
-            const qtd = Number(it.quantidade);
-            const pu = Number(it.precoUnitario);
+            const quantidade = Number(quantidadeRaw);
+            const precoUnitario = Number(precoUnitarioRaw);
 
-            if (!qtd || qtd <= 0)
-                throw new Error(`Quantidade inválida no item ${i + 1}`);
-            if (Number.isNaN(pu) || pu <= 0)
-                throw new Error(`Preço unitário inválido no item ${i + 1}`);
+            if (!categoriaId) {
+                novosErros.itens[i].categoriaId = "Selecione a categoria.";
+            }
+
+            if (!produtoId) {
+                novosErros.itens[i].produtoId = "Selecione o produto.";
+            }
+
+            if (quantidadeRaw === "") {
+                novosErros.itens[i].quantidade = "Informe a quantidade.";
+            } else if (Number.isNaN(quantidade) || quantidade <= 0) {
+                novosErros.itens[i].quantidade = "Quantidade inválida.";
+            } else if (produtoId && quantidade > estoqueDisponivel) {
+                novosErros.itens[i].quantidade = `Quantidade maior que o estoque disponível (${estoqueDisponivel}).`;
+            }
+
+            if (!String(it.unidade || "").trim()) {
+                novosErros.itens[i].unidade = "Informe a unidade.";
+            }
+
+            if (precoUnitarioRaw === "") {
+                novosErros.itens[i].precoUnitario = "Informe o preço unitário.";
+            } else if (Number.isNaN(precoUnitario) || precoUnitario <= 0) {
+                novosErros.itens[i].precoUnitario = "Preço unitário inválido.";
+            }
         });
+
+        setFormErrors(novosErros);
+
+        const hasTopErrors = Object.entries(novosErros)
+            .filter(([key]) => key !== "itens")
+            .some(([, value]) => Boolean(value));
+
+        const hasItemErrors = (novosErros.itens || []).some((itemErr) =>
+            Object.values(itemErr).some(Boolean)
+        );
+
+        if (hasTopErrors || hasItemErrors) {
+            return false;
+        }
+
+        return true;
     };
 
     const handleSave = async () => {
         try {
-            setError("");
-            validateForm();
+            setFormError("");
+
+            const isValid = validateForm();
+            if (!isValid) {
+                if (!formError) {
+                    setFormError("Revise os campos obrigatórios da venda.");
+                }
+                return;
+            }
+
             setLoading(true);
 
             const payload = {
@@ -449,15 +746,15 @@ export default function Vendas() {
                 bairro: String(form.bairro || "").trim(),
                 fone: String(form.fone || "").trim(),
                 observacao: String(form.observacao || "").trim(),
-                desconto: form.desconto === "" ? 0 : Number(form.desconto || 0),
-                adicional: form.adicional === "" ? 0 : Number(form.adicional || 0),
-                frete: form.frete === "" ? 0 : Number(form.frete || 0),
+                desconto: form.desconto === "" ? 0 : Number(form.desconto),
+                adicional: form.adicional === "" ? 0 : Number(form.adicional),
+                frete: form.frete === "" ? 0 : Number(form.frete),
 
                 categoriaFinanceiraId: Number(form.categoriaFinanceiraId),
                 formaPagamentoId: Number(form.formaPagamentoId),
-                numeroParcelas: Number(form.numeroParcelas || 1),
+                numeroParcelas: Number(form.numeroParcelas),
                 primeiroVencimento: form.primeiroVencimento,
-                intervaloDias: Number(form.intervaloDias || 30),
+                intervaloDias: Number(form.intervaloDias),
                 descricaoTitulo: String(form.descricaoTitulo || "").trim(),
 
                 itens: (form.itens || []).map((it) => ({
@@ -476,14 +773,35 @@ export default function Vendas() {
                 setVendas((prev) =>
                     prev.map((v) => (v.id === editing.id ? saved : v))
                 );
+                setPageSuccess("Venda atualizada com sucesso.");
             } else {
                 saved = await apiService.createVenda(payload);
                 setVendas((prev) => [saved, ...prev]);
+                setPageSuccess("Venda criada com sucesso.");
+
+                const vendaParaPrompt = buildVendaParaImpressao({
+                    ...saved,
+                    ...payload,
+                    valorTotal:
+                        saved?.valorTotal ??
+                        payload.itens.reduce(
+                            (acc, it) => acc + Number(it.quantidade || 0) * Number(it.precoUnitario || 0),
+                            0
+                        ) -
+                        Number(payload.desconto || 0) +
+                        Number(payload.adicional || 0) +
+                        Number(payload.frete || 0),
+                    dataDaVenda: saved?.dataDaVenda || new Date().toISOString(),
+                    status: saved?.status || "ATIVA",
+                });
+
+                setSaleToPrint(vendaParaPrompt);
+                setOpenPrintPrompt(true);
             }
 
             handleCloseForm();
         } catch (e) {
-            setError(e?.message || "Erro ao salvar venda");
+            setFormError(e?.message || "Erro ao salvar venda");
         } finally {
             setLoading(false);
         }
@@ -501,16 +819,73 @@ export default function Vendas() {
         if (motivo === null) return;
 
         try {
-            setError("");
+            setPageError("");
+            setPageSuccess("");
             setLoading(true);
 
             await apiService.cancelarVenda(v.id, motivo || "");
             await loadData();
+            setPageSuccess("Venda cancelada com sucesso.");
         } catch (e) {
-            setError(e?.message || "Erro ao cancelar venda");
+            setPageError(e?.message || "Erro ao cancelar venda");
         } finally {
             setLoading(false);
         }
+    };
+
+    const clienteSelectSx = {
+        width: "100%",
+        minWidth: 280,
+    };
+
+    const categoriaSelectSx = {
+        width: "100%",
+        minWidth: 220,
+    };
+
+    const produtoSelectSx = {
+        width: "100%",
+        minWidth: 420,
+    };
+
+    const financeiroSelectSx = {
+        width: "100%",
+        minWidth: 280,
+    };
+
+    const selectInputSx = {
+        width: "100%",
+    };
+
+    const getCategoriaFinanceiraNome = (id) => {
+        const cat = categoriasFinanceiras.find((c) => Number(c.id) === Number(id));
+        return cat?.nome || "-";
+    };
+
+    const getFormaPagamentoNome = (id) => {
+        const fp = formasPagamento.find((f) => Number(f.id) === Number(id));
+        return fp?.tipo || "-";
+    };
+
+    const handlePrintVenda = (vendaRaw) => {
+        const venda = buildVendaParaImpressao(vendaRaw, {
+            getClienteById,
+            getProdutoById: getProduto,
+            getCategoriaFinanceiraNome,
+            getFormaPagamentoNome,
+            getCategoriaProdutoNome: (categoriaId) => {
+                const categoria = categorias.find((c) => Number(c.id) === Number(categoriaId));
+                return categoria?.nome || "-";
+            },
+        });
+
+        const html = gerarHtmlComprovanteVenda(venda);
+
+        imprimirHtml(html, () => {
+            setPageError(
+                "Não foi possível abrir a janela de impressão. Verifique se o navegador bloqueou pop-ups."
+            );
+        });
     };
 
     return (
@@ -557,7 +932,6 @@ export default function Vendas() {
                                             Nova Venda
                                         </Button>
 
-                                        <Button variant="contained">Importar</Button>
                                         <Button variant="contained">Exportar XLSX</Button>
                                         <Button variant="contained">Exportar PDF</Button>
 
@@ -696,9 +1070,19 @@ export default function Vendas() {
                     </Paper>
                 </Grid>
 
-                {error && (
+                {pageSuccess && (
                     <Grid item xs={12} sx={pageContentSx}>
-                        <Alert severity="error">{error}</Alert>
+                        <Alert severity="success" onClose={() => setPageSuccess("")}>
+                            {pageSuccess}
+                        </Alert>
+                    </Grid>
+                )}
+
+                {pageError && (
+                    <Grid item xs={12} sx={pageContentSx}>
+                        <Alert severity="error" onClose={() => setPageError("")}>
+                            {pageError}
+                        </Alert>
                     </Grid>
                 )}
 
@@ -780,6 +1164,12 @@ export default function Vendas() {
                                                             </IconButton>
                                                         </Tooltip>
 
+                                                        <Tooltip title="Imprimir venda">
+                                                            <IconButton onClick={() => handlePrintVenda(v)}>
+                                                                <PrintIcon />
+                                                            </IconButton>
+                                                        </Tooltip>
+
                                                         <Tooltip
                                                             title={ativa ? "Editar" : "Venda cancelada"}
                                                         >
@@ -845,24 +1235,27 @@ export default function Vendas() {
 
                 <DialogContent dividers sx={{ p: 3 }}>
                     <Stack spacing={2}>
+                        {formError && (
+                            <Alert severity="error" onClose={() => setFormError("")}>
+                                {formError}
+                            </Alert>
+                        )}
+
                         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                             <Grid container spacing={2}>
-                                <Grid item xs={12} md={6}>
+                                <Grid item xs={12} md={4}>
                                     <FormControl
                                         fullWidth
                                         size="medium"
-                                        sx={{
-                                            width: "100%",
-                                            minWidth: 420,
-                                            flex: 1,
-                                        }}
+                                        error={!!formErrors.clienteId}
+                                        sx={clienteSelectSx}
                                     >
                                         <InputLabel>Cliente</InputLabel>
                                         <Select
                                             label="Cliente"
                                             value={form.clienteId}
                                             onChange={(e) => handleClienteChange(e.target.value)}
-                                            sx={{ width: "100%" }}
+                                            sx={selectInputSx}
                                         >
                                             {clientes.map((c) => (
                                                 <MenuItem key={c.id} value={c.id}>
@@ -870,27 +1263,30 @@ export default function Vendas() {
                                                 </MenuItem>
                                             ))}
                                         </Select>
+                                        <FormHelperText>{formErrors.clienteId}</FormHelperText>
                                     </FormControl>
                                 </Grid>
 
-                                <Grid item xs={12} md={6}>
+                                <Grid item xs={12} md={4}>
                                     <TextField
                                         label="Telefone"
                                         value={form.fone}
                                         onChange={(e) =>
-                                            setForm((f) => ({ ...f, fone: e.target.value }))
+                                            updateFormField("fone", e.target.value)
                                         }
+                                        error={!!formErrors.fone}
+                                        helperText={formErrors.fone}
                                         fullWidth
                                     />
                                 </Grid>
 
-                                <Grid item xs={12} md={8}>
+                                <Grid item xs={12} md={4}>
                                     <TextField
                                         label="Rua"
                                         value={form.rua}
-                                        onChange={(e) =>
-                                            setForm((f) => ({ ...f, rua: e.target.value }))
-                                        }
+                                        onChange={(e) => updateFormField("rua", e.target.value)}
+                                        error={!!formErrors.rua}
+                                        helperText={formErrors.rua}
                                         fullWidth
                                     />
                                 </Grid>
@@ -899,23 +1295,24 @@ export default function Vendas() {
                                     <TextField
                                         label="Bairro"
                                         value={form.bairro}
-                                        onChange={(e) =>
-                                            setForm((f) => ({ ...f, bairro: e.target.value }))
-                                        }
+                                        onChange={(e) => updateFormField("bairro", e.target.value)}
+                                        error={!!formErrors.bairro}
+                                        helperText={formErrors.bairro}
                                         fullWidth
                                     />
                                 </Grid>
 
-                                <Grid item xs={12}>
+                                <Grid item xs={12} md={8}>
                                     <TextField
                                         label="Observação"
                                         value={form.observacao}
-                                        onChange={(e) =>
-                                            setForm((f) => ({ ...f, observacao: e.target.value }))
-                                        }
+                                        onChange={(e) => updateFormField("observacao", e.target.value)}
+                                        error={!!formErrors.observacao}
+                                        helperText={formErrors.observacao}
                                         fullWidth
                                         multiline
                                         minRows={2}
+                                        maxRows={3}
                                     />
                                 </Grid>
                             </Grid>
@@ -943,7 +1340,12 @@ export default function Vendas() {
                                     const listaProdutos = it.categoriaId
                                         ? produtosPorCategoria(it.categoriaId)
                                         : [];
+                                    const produtoSelecionado = getProduto(it.produtoId);
                                     const itemTotal = calcItemTotal(it);
+                                    const itemError = formErrors.itens?.[idx] || emptyItemErrors;
+                                    const estoqueDisponivel = Number(
+                                        produtoSelecionado?.quantidadeDisponivel ?? 0
+                                    );
 
                                     return (
                                         <Box
@@ -951,15 +1353,17 @@ export default function Vendas() {
                                             sx={{
                                                 p: 2,
                                                 borderRadius: 2,
-                                                bgcolor: "rgba(0,0,0,0.03)",
+                                                border: "1px solid",
+                                                borderColor: "divider",
+                                                bgcolor: "background.paper",
                                             }}
                                         >
-                                            <Grid container spacing={2} alignItems="center">
-                                                <Grid item xs={12} md={4}>
+                                            <Grid container spacing={2} alignItems="flex-start">
+                                                <Grid item xs={12} md={3}>
                                                     <FormControl
                                                         fullWidth
-                                                        size="medium"
-                                                        sx={{ width: "100%", minWidth: 260, flex: 1 }}
+                                                        error={!!itemError.categoriaId}
+                                                        sx={categoriaSelectSx}
                                                     >
                                                         <InputLabel>Categoria</InputLabel>
                                                         <Select
@@ -968,7 +1372,7 @@ export default function Vendas() {
                                                             onChange={(e) =>
                                                                 handleCategoriaChange(idx, e.target.value)
                                                             }
-                                                            sx={{ width: "100%" }}
+                                                            sx={selectInputSx}
                                                         >
                                                             {categorias.map((c) => (
                                                                 <MenuItem key={c.id} value={c.id}>
@@ -976,15 +1380,18 @@ export default function Vendas() {
                                                                 </MenuItem>
                                                             ))}
                                                         </Select>
+                                                        <FormHelperText sx={{ minHeight: 20 }}>
+                                                            {itemError.categoriaId || " "}
+                                                        </FormHelperText>
                                                     </FormControl>
                                                 </Grid>
 
-                                                <Grid item xs={12} md={8}>
+                                                <Grid item xs={12} md={6}>
                                                     <FormControl
                                                         fullWidth
-                                                        size="medium"
+                                                        error={!!itemError.produtoId}
                                                         disabled={!it.categoriaId}
-                                                        sx={{ width: "100%", minWidth: 520, flex: 2 }}
+                                                        sx={produtoSelectSx}
                                                     >
                                                         <InputLabel>Produto</InputLabel>
                                                         <Select
@@ -993,26 +1400,47 @@ export default function Vendas() {
                                                             onChange={(e) =>
                                                                 handleProdutoChange(idx, e.target.value)
                                                             }
-                                                            sx={{ width: "100%" }}
+                                                            sx={selectInputSx}
                                                         >
-                                                            {listaProdutos.map((p) => (
-                                                                <MenuItem key={p.id} value={p.id}>
-                                                                    {p.descricao}
-                                                                </MenuItem>
-                                                            ))}
+                                                            {listaProdutos.map((p) => {
+                                                                const estoque = Number(p.quantidadeDisponivel ?? 0);
+                                                                const semEstoque = estoque <= 0;
+
+                                                                return (
+                                                                    <MenuItem
+                                                                        key={p.id}
+                                                                        value={p.id}
+                                                                        disabled={semEstoque}
+                                                                    >
+                                                                        {p.descricao} — {money(p.precoVarejo)} — Estoque: {estoque}
+                                                                    </MenuItem>
+                                                                );
+                                                            })}
                                                         </Select>
+                                                        <FormHelperText sx={{ minHeight: 20 }}>
+                                                            {itemError.produtoId ||
+                                                                (produtoSelecionado
+                                                                    ? `Estoque disponível: ${estoqueDisponivel}`
+                                                                    : " ")}
+                                                        </FormHelperText>
                                                     </FormControl>
                                                 </Grid>
 
-                                                <Grid item xs={12} md={2}>
+                                                <Grid item xs={12} md={3}>
                                                     <TextField
                                                         label="Qtd"
                                                         type="number"
-                                                        inputProps={{ min: 0 }}
                                                         value={it.quantidade}
                                                         onChange={(e) =>
-                                                            updateItem(idx, { quantidade: e.target.value })
+                                                            updateItemField(idx, "quantidade", e.target.value)
                                                         }
+                                                        error={!!itemError.quantidade}
+                                                        helperText={itemError.quantidade || " "}
+                                                        FormHelperTextProps={{ sx: { minHeight: 20 } }}
+                                                        inputProps={{
+                                                            min: 1,
+                                                            max: estoqueDisponivel || undefined,
+                                                        }}
                                                         fullWidth
                                                     />
                                                 </Grid>
@@ -1022,8 +1450,11 @@ export default function Vendas() {
                                                         label="Un"
                                                         value={it.unidade}
                                                         onChange={(e) =>
-                                                            updateItem(idx, { unidade: e.target.value })
+                                                            updateItemField(idx, "unidade", e.target.value)
                                                         }
+                                                        error={!!itemError.unidade}
+                                                        helperText={itemError.unidade || " "}
+                                                        FormHelperTextProps={{ sx: { minHeight: 20 } }}
                                                         fullWidth
                                                     />
                                                 </Grid>
@@ -1035,16 +1466,27 @@ export default function Vendas() {
                                                         inputProps={{ min: 0, step: 0.01 }}
                                                         value={it.precoUnitario}
                                                         onChange={(e) =>
-                                                            updateItem(idx, {
-                                                                precoUnitario: e.target.value,
-                                                            })
+                                                            updateItemField(idx, "precoUnitario", e.target.value)
                                                         }
+                                                        error={!!itemError.precoUnitario}
+                                                        helperText={itemError.precoUnitario || " "}
+                                                        FormHelperTextProps={{ sx: { minHeight: 20 } }}
                                                         fullWidth
                                                     />
                                                 </Grid>
 
                                                 <Grid item xs={12} md={3}>
-                                                    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                                    <Paper
+                                                        variant="outlined"
+                                                        sx={{
+                                                            p: 1.5,
+                                                            borderRadius: 2,
+                                                            height: 56,
+                                                            display: "flex",
+                                                            flexDirection: "column",
+                                                            justifyContent: "center",
+                                                        }}
+                                                    >
                                                         <Typography variant="body2" color="text.secondary">
                                                             Total item
                                                         </Typography>
@@ -1052,6 +1494,35 @@ export default function Vendas() {
                                                             {money(itemTotal)}
                                                         </Typography>
                                                     </Paper>
+                                                    <Box sx={{ minHeight: 20 }} />
+                                                </Grid>
+
+                                                <Grid item xs={12} md={2}>
+                                                    <TextField
+                                                        label="Bitola"
+                                                        value={it.bitola}
+                                                        onChange={(e) =>
+                                                            updateItemField(idx, "bitola", e.target.value)
+                                                        }
+                                                        error={!!itemError.bitola}
+                                                        helperText={itemError.bitola || " "}
+                                                        FormHelperTextProps={{ sx: { minHeight: 20 } }}
+                                                        fullWidth
+                                                    />
+                                                </Grid>
+
+                                                <Grid item xs={12} md={2}>
+                                                    <TextField
+                                                        label="Comprimento"
+                                                        value={it.comprimento}
+                                                        onChange={(e) =>
+                                                            updateItemField(idx, "comprimento", e.target.value)
+                                                        }
+                                                        error={!!itemError.comprimento}
+                                                        helperText={itemError.comprimento || " "}
+                                                        FormHelperTextProps={{ sx: { minHeight: 20 } }}
+                                                        fullWidth
+                                                    />
                                                 </Grid>
 
                                                 <Grid item xs={12} md={2}>
@@ -1059,32 +1530,12 @@ export default function Vendas() {
                                                         color="error"
                                                         variant="outlined"
                                                         fullWidth
+                                                        sx={{ height: 56 }}
                                                         onClick={() => removeItem(idx)}
                                                     >
                                                         Remover
                                                     </Button>
-                                                </Grid>
-
-                                                <Grid item xs={12} md={6}>
-                                                    <TextField
-                                                        label="Bitola"
-                                                        value={it.bitola}
-                                                        onChange={(e) =>
-                                                            updateItem(idx, { bitola: e.target.value })
-                                                        }
-                                                        fullWidth
-                                                    />
-                                                </Grid>
-
-                                                <Grid item xs={12} md={6}>
-                                                    <TextField
-                                                        label="Comprimento"
-                                                        value={it.comprimento}
-                                                        onChange={(e) =>
-                                                            updateItem(idx, { comprimento: e.target.value })
-                                                        }
-                                                        fullWidth
-                                                    />
+                                                    <Box sx={{ minHeight: 20 }} />
                                                 </Grid>
                                             </Grid>
                                         </Box>
@@ -1102,8 +1553,10 @@ export default function Vendas() {
                                         inputProps={{ min: 0, step: 0.01 }}
                                         value={form.desconto}
                                         onChange={(e) =>
-                                            setForm((f) => ({ ...f, desconto: e.target.value }))
+                                            updateFormField("desconto", e.target.value)
                                         }
+                                        error={!!formErrors.desconto}
+                                        helperText={formErrors.desconto}
                                         fullWidth
                                     />
                                 </Grid>
@@ -1115,8 +1568,10 @@ export default function Vendas() {
                                         inputProps={{ min: 0, step: 0.01 }}
                                         value={form.adicional}
                                         onChange={(e) =>
-                                            setForm((f) => ({ ...f, adicional: e.target.value }))
+                                            updateFormField("adicional", e.target.value)
                                         }
+                                        error={!!formErrors.adicional}
+                                        helperText={formErrors.adicional}
                                         fullWidth
                                     />
                                 </Grid>
@@ -1128,8 +1583,10 @@ export default function Vendas() {
                                         inputProps={{ min: 0, step: 0.01 }}
                                         value={form.frete}
                                         onChange={(e) =>
-                                            setForm((f) => ({ ...f, frete: e.target.value }))
+                                            updateFormField("frete", e.target.value)
                                         }
+                                        error={!!formErrors.frete}
+                                        helperText={formErrors.frete}
                                         fullWidth
                                     />
                                 </Grid>
@@ -1158,23 +1615,20 @@ export default function Vendas() {
                                         <FormControl
                                             fullWidth
                                             size="medium"
-                                            sx={{
-                                                width: "100%",
-                                                minWidth: 320,
-                                                flex: 1,
-                                            }}
+                                            error={!!formErrors.categoriaFinanceiraId}
+                                            sx={financeiroSelectSx}
                                         >
                                             <InputLabel>Categoria financeira</InputLabel>
                                             <Select
                                                 label="Categoria financeira"
                                                 value={form.categoriaFinanceiraId}
                                                 onChange={(e) =>
-                                                    setForm((f) => ({
-                                                        ...f,
-                                                        categoriaFinanceiraId: e.target.value,
-                                                    }))
+                                                    updateFormField(
+                                                        "categoriaFinanceiraId",
+                                                        e.target.value
+                                                    )
                                                 }
-                                                sx={{ width: "100%" }}
+                                                sx={selectInputSx}
                                             >
                                                 {categoriasFinanceiras.map((cat) => (
                                                     <MenuItem key={cat.id} value={cat.id}>
@@ -1182,6 +1636,9 @@ export default function Vendas() {
                                                     </MenuItem>
                                                 ))}
                                             </Select>
+                                            <FormHelperText>
+                                                {formErrors.categoriaFinanceiraId}
+                                            </FormHelperText>
                                         </FormControl>
                                     </Grid>
 
@@ -1189,23 +1646,20 @@ export default function Vendas() {
                                         <FormControl
                                             fullWidth
                                             size="medium"
-                                            sx={{
-                                                width: "100%",
-                                                minWidth: 320,
-                                                flex: 1,
-                                            }}
+                                            error={!!formErrors.formaPagamentoId}
+                                            sx={financeiroSelectSx}
                                         >
                                             <InputLabel>Forma de pagamento</InputLabel>
                                             <Select
                                                 label="Forma de pagamento"
                                                 value={form.formaPagamentoId}
                                                 onChange={(e) =>
-                                                    setForm((f) => ({
-                                                        ...f,
-                                                        formaPagamentoId: e.target.value,
-                                                    }))
+                                                    updateFormField(
+                                                        "formaPagamentoId",
+                                                        e.target.value
+                                                    )
                                                 }
-                                                sx={{ width: "100%" }}
+                                                sx={selectInputSx}
                                             >
                                                 {formasPagamento.map((fp) => (
                                                     <MenuItem key={fp.id} value={fp.id}>
@@ -1213,6 +1667,9 @@ export default function Vendas() {
                                                     </MenuItem>
                                                 ))}
                                             </Select>
+                                            <FormHelperText>
+                                                {formErrors.formaPagamentoId}
+                                            </FormHelperText>
                                         </FormControl>
                                     </Grid>
 
@@ -1221,17 +1678,14 @@ export default function Vendas() {
                                             label="Descrição do título"
                                             value={form.descricaoTitulo}
                                             onChange={(e) =>
-                                                setForm((f) => ({
-                                                    ...f,
-                                                    descricaoTitulo: e.target.value,
-                                                }))
+                                                updateFormField(
+                                                    "descricaoTitulo",
+                                                    e.target.value
+                                                )
                                             }
+                                            error={!!formErrors.descricaoTitulo}
+                                            helperText={formErrors.descricaoTitulo}
                                             fullWidth
-                                            sx={{
-                                                width: "100%",
-                                                minWidth: 320,
-                                                flex: 1,
-                                            }}
                                             placeholder="Ex: Venda balcão - cliente João"
                                         />
                                     </Grid>
@@ -1243,17 +1697,14 @@ export default function Vendas() {
                                             inputProps={{ min: 1 }}
                                             value={form.numeroParcelas}
                                             onChange={(e) =>
-                                                setForm((f) => ({
-                                                    ...f,
-                                                    numeroParcelas: e.target.value,
-                                                }))
+                                                updateFormField(
+                                                    "numeroParcelas",
+                                                    e.target.value
+                                                )
                                             }
+                                            error={!!formErrors.numeroParcelas}
+                                            helperText={formErrors.numeroParcelas}
                                             fullWidth
-                                            sx={{
-                                                width: "100%",
-                                                minWidth: 200,
-                                                flex: 1,
-                                            }}
                                         />
                                     </Grid>
 
@@ -1263,17 +1714,14 @@ export default function Vendas() {
                                             type="date"
                                             value={form.primeiroVencimento}
                                             onChange={(e) =>
-                                                setForm((f) => ({
-                                                    ...f,
-                                                    primeiroVencimento: e.target.value,
-                                                }))
+                                                updateFormField(
+                                                    "primeiroVencimento",
+                                                    e.target.value
+                                                )
                                             }
+                                            error={!!formErrors.primeiroVencimento}
+                                            helperText={formErrors.primeiroVencimento}
                                             fullWidth
-                                            sx={{
-                                                width: "100%",
-                                                minWidth: 220,
-                                                flex: 1,
-                                            }}
                                             InputLabelProps={{ shrink: true }}
                                         />
                                     </Grid>
@@ -1285,17 +1733,14 @@ export default function Vendas() {
                                             inputProps={{ min: 1 }}
                                             value={form.intervaloDias}
                                             onChange={(e) =>
-                                                setForm((f) => ({
-                                                    ...f,
-                                                    intervaloDias: e.target.value,
-                                                }))
+                                                updateFormField(
+                                                    "intervaloDias",
+                                                    e.target.value
+                                                )
                                             }
+                                            error={!!formErrors.intervaloDias}
+                                            helperText={formErrors.intervaloDias}
                                             fullWidth
-                                            sx={{
-                                                width: "100%",
-                                                minWidth: 200,
-                                                flex: 1,
-                                            }}
                                             disabled={Number(form.numeroParcelas || 1) <= 1}
                                         />
                                     </Grid>
@@ -1315,9 +1760,100 @@ export default function Vendas() {
                 </DialogActions>
             </Dialog>
 
+            <Dialog
+                open={openPrintPrompt}
+                onClose={() => {
+                    setOpenPrintPrompt(false);
+                    setSaleToPrint(null);
+                }}
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 4 } }}
+            >
+                <DialogTitle sx={{ pb: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                        <ReceiptLongIcon color="primary" />
+                        <Box>
+                            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                Venda concluída
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Deseja imprimir ou salvar o comprovante desta venda?
+                            </Typography>
+                        </Box>
+                    </Stack>
+                </DialogTitle>
+
+                <DialogContent>
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            p: 2,
+                            borderRadius: 3,
+                            bgcolor: "grey.50",
+                        }}
+                    >
+                        <Stack spacing={1}>
+                            <Typography variant="body2" color="text.secondary">
+                                Venda
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                                #{saleToPrint?.id || "-"}
+                            </Typography>
+
+                            <Divider sx={{ my: 1 }} />
+
+                            <Typography variant="body2">
+                                <strong>Cliente:</strong> {saleToPrint?.nomeCliente || "-"}
+                            </Typography>
+                            <Typography variant="body2">
+                                <strong>Total:</strong> {money(saleToPrint?.valorTotal)}
+                            </Typography>
+                            <Typography variant="body2">
+                                <strong>Itens:</strong> {(saleToPrint?.itens || []).length}
+                            </Typography>
+                            <Typography variant="body2">
+                                <strong>Data:</strong> {dateTimeBR(saleToPrint?.dataDaVenda)}
+                            </Typography>
+                        </Stack>
+                    </Paper>
+                </DialogContent>
+
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button
+                        onClick={() => {
+                            setOpenPrintPrompt(false);
+                            setSaleToPrint(null);
+                        }}
+                    >
+                        Agora não
+                    </Button>
+
+                    <Button
+                        variant="contained"
+                        startIcon={<PrintIcon />}
+                        onClick={() => {
+                            if (saleToPrint) {
+                                handlePrintVenda(saleToPrint);
+                            }
+                            setOpenPrintPrompt(false);
+                            setSaleToPrint(null);
+                        }}
+                    >
+                        Imprimir / Salvar PDF
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             <Dialog open={openDetails} onClose={closeView} maxWidth="md" fullWidth>
                 <DialogTitle>Detalhes da venda</DialogTitle>
                 <DialogContent dividers>
+                    {detailsError && (
+                        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDetailsError("")}>
+                            {detailsError}
+                        </Alert>
+                    )}
+
                     {!details ? (
                         <Typography color="text.secondary">Nada para mostrar.</Typography>
                     ) : (
@@ -1496,7 +2032,7 @@ export default function Vendas() {
                                         Categoria financeira
                                     </Typography>
                                     <Typography sx={{ fontWeight: 800 }}>
-                                        {details.categoriaFinanceiraId || "-"}
+                                        {getCategoriaFinanceiraNome(details.categoriaFinanceiraId)}
                                     </Typography>
                                 </Grid>
 
@@ -1505,7 +2041,7 @@ export default function Vendas() {
                                         Forma de pagamento
                                     </Typography>
                                     <Typography sx={{ fontWeight: 800 }}>
-                                        {details.formaPagamentoId || "-"}
+                                        {getFormaPagamentoNome(details.formaPagamentoId)}
                                     </Typography>
                                 </Grid>
 
@@ -1551,6 +2087,15 @@ export default function Vendas() {
                     )}
                 </DialogContent>
                 <DialogActions>
+                    {details && (
+                        <Button
+                            variant="outlined"
+                            startIcon={<PrintIcon />}
+                            onClick={() => handlePrintVenda(details)}
+                        >
+                            Imprimir
+                        </Button>
+                    )}
                     <Button onClick={closeView}>Fechar</Button>
                 </DialogActions>
             </Dialog>

@@ -1,5 +1,6 @@
 package com.estoqueplan.estoque_plan.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,7 +18,9 @@ import com.estoqueplan.estoque_plan.repository.UsuarioRepository;
 @Service
 public class UsuarioService {
 
+    @Autowired
     private final UsuarioRepository usuarioRepository;
+
     private final PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -75,6 +78,9 @@ public class UsuarioService {
         usuario.setLogin(dto.getLogin() != null ? dto.getLogin().trim() : null);
         usuario.setSenha(passwordEncoder.encode(dto.getSenha()));
         usuario.setPermissao(dto.getPermissao());
+        boolean ativo = dto.getAtivo() == null ? true : dto.getAtivo();
+        usuario.setAtivo(ativo);
+        usuario.setInativadoEm(ativo ? null : LocalDateTime.now());
 
         return usuarioRepository.save(usuario);
     }
@@ -170,6 +176,11 @@ public class UsuarioService {
             usuarioAlvo.setPermissao(dto.getPermissao());
         }
 
+        if (dto.getAtivo() != null) {
+            usuarioAlvo.setAtivo(dto.getAtivo());
+            usuarioAlvo.setInativadoEm(dto.getAtivo() ? null : LocalDateTime.now());
+        }
+
         return usuarioRepository.save(usuarioAlvo);
     }
 
@@ -189,6 +200,27 @@ public class UsuarioService {
         }
     }
 
+    public void inativarUsuarioPorId(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario não encontrado!"));
+        if (!usuario.isAtivo()) {
+            return;
+        }
+
+        usuario.setAtivo(false);
+        usuario.setInativadoEm(LocalDateTime.now());
+        usuarioRepository.save(usuario);
+    }
+
+    public void ativarUsuarioPorId(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario não encontrado!"));
+
+        usuario.setAtivo(true);
+        usuario.setInativadoEm(null);
+        usuarioRepository.save(usuario);
+    }
+
     private UsuarioDTO toDTO(Usuario usuario) {
         UsuarioDTO dto = new UsuarioDTO();
         dto.setId(usuario.getId());
@@ -198,6 +230,8 @@ public class UsuarioService {
         dto.setCargo(usuario.getCargo());
         dto.setLogin(usuario.getLogin());
         dto.setPermissao(usuario.getPermissao());
+        dto.setAtivo(usuario.isAtivo());
+        dto.setInativadoEm(usuario.getInativadoEm());
         return dto;
     }
 }

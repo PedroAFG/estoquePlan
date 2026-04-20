@@ -21,25 +21,30 @@ import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import MenuIcon from "@mui/icons-material/Menu";
 
-import { AccountBalanceWallet, AppRegistration, AttachMoneyOutlined, Settings } from "@mui/icons-material";
+import {
+  AccountBalanceWallet,
+  AppRegistration,
+  AttachMoneyOutlined,
+  Settings,
+} from "@mui/icons-material";
+
+import apiService from "../services/api";
 
 export const drawerSizes = {
   drawerWidthOpen: 240,
   drawerWidthClosed: 72,
 };
 
-// ✅ Paths reais (NUNCA deixe path="")
 const menuItems = [
   { label: "Dashboard", icon: <DashboardIcon />, path: "/dashboard" },
   { label: "Produtos", icon: <Inventory2Icon />, path: "/produtos" },
   { label: "Vendas", icon: <PointOfSaleIcon />, path: "/vendas" },
   { label: "Títulos Financeiros", icon: <AttachMoneyOutlined />, path: "/financeiro/titulos" },
-  { label: "Gestão do Caixa", icon: <AccountBalanceWallet />, path: "/financeiro/caixa" },
-  { label: "Cadastros Gerais", icon: <AppRegistration />, path: "/cadastros"},
-  { label: "Configurações", icon: <Settings/>, path: "/configuracoes"},
+  { label: "Gestão do Caixa", icon: <AccountBalanceWallet />, path: "/financeiro/caixa", adminOnly: true },
+  { label: "Cadastros Gerais", icon: <AppRegistration />, path: "/cadastros", adminOnly: true },
+  { label: "Configurações", icon: <Settings />, path: "/configuracoes" },
 ];
 
-// ✅ selected correto (evita startsWith("") e evita "/" selecionando tudo)
 function isSelected(currentPath, itemPath) {
   if (!itemPath) return false;
   if (itemPath === "/") return currentPath === "/";
@@ -57,6 +62,26 @@ export default function Sidebar({
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const location = useLocation();
 
+  const [isAdmin, setIsAdmin] = React.useState(false);
+
+  React.useEffect(() => {
+    const carregarUsuario = async () => {
+      try {
+        const me = await apiService.getMe();
+        setIsAdmin(me?.permissao === "ADMINISTRADOR");
+      } catch (error) {
+        setIsAdmin(false);
+      }
+    };
+
+    carregarUsuario();
+  }, []);
+
+  const itensVisiveis = menuItems.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false;
+    return true;
+  });
+
   const drawerWidth = desktopOpen
     ? drawerSizes.drawerWidthOpen
     : drawerSizes.drawerWidthClosed;
@@ -66,13 +91,11 @@ export default function Sidebar({
 
     if (onNavigate) onNavigate(path);
 
-    // ✅ mobile fecha sozinho
     if (isMobile && onCloseMobile) onCloseMobile();
   };
 
   const content = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Topo do drawer */}
       <Toolbar
         sx={{
           display: "flex",
@@ -81,7 +104,6 @@ export default function Sidebar({
           px: 1,
         }}
       >
-        {/* Toggle só no desktop */}
         {!isMobile && (
           <IconButton
             onClick={onToggleDesktop}
@@ -95,7 +117,7 @@ export default function Sidebar({
       <Divider />
 
       <List sx={{ flex: 1 }}>
-        {menuItems.map((it) => {
+        {itensVisiveis.map((it) => {
           const selected = isSelected(location.pathname, it.path);
 
           const btn = (
@@ -123,7 +145,6 @@ export default function Sidebar({
             </ListItemButton>
           );
 
-          // Tooltip quando colapsado no desktop
           return !isMobile && !desktopOpen ? (
             <Tooltip key={it.path} title={it.label} placement="right">
               {btn}
@@ -139,7 +160,6 @@ export default function Sidebar({
     </Box>
   );
 
-  // ✅ Mobile = Drawer temporário
   if (isMobile) {
     return (
       <Drawer
@@ -158,7 +178,6 @@ export default function Sidebar({
     );
   }
 
-  // ✅ Desktop = Drawer permanente colapsável
   return (
     <Drawer
       variant="permanent"

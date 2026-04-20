@@ -27,9 +27,12 @@ import {
   Switch,
   Tooltip,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
+  Divider,
+  Box,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -65,14 +68,23 @@ const tiposFormaPagamento = [
 
 const emptyForm = {
   tipo: "PIX",
-  taxaPercentual: 0,
-  prazoDiasRepasse: 0,
+  taxaPercentual: "",
+  prazoDiasRepasse: "",
+};
+
+const emptyFormErrors = {
+  tipo: "",
+  taxaPercentual: "",
+  prazoDiasRepasse: "",
 };
 
 export default function FormasPagamentoPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+
+  const [pageError, setPageError] = useState("");
+  const [pageSuccess, setPageSuccess] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const [formas, setFormas] = useState([]);
   const [mostrarInativos, setMostrarInativos] = useState(false);
@@ -83,20 +95,34 @@ export default function FormasPagamentoPage() {
   const [modoEdicao, setModoEdicao] = useState(false);
   const [formaEdicaoId, setFormaEdicaoId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState(emptyFormErrors);
+
+  const total = formas.length;
+
+  const pageContentSx = {
+    width: "100%",
+  };
 
   const carregarFormasPagamento = async () => {
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
 
-      const data = await apiService.getFormasPagamento();
+      const data = await apiService.getFormasPagamento({
+        incluirInativos: mostrarInativos,
+      });
+
       setFormas(data || []);
     } catch (e) {
-      setError(e?.message || "Erro ao carregar formas de pagamento");
+      setPageError(e?.message || "Erro ao carregar formas de pagamento");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    carregarFormasPagamento();
+  }, [mostrarInativos]);
 
   useEffect(() => {
     carregarFormasPagamento();
@@ -115,16 +141,77 @@ export default function FormasPagamentoPage() {
       .sort((a, b) => Number(b.id) - Number(a.id));
   }, [formas, busca, mostrarInativos, filtroTipo]);
 
+  const validateForm = () => {
+    const novosErros = {
+      tipo: "",
+      taxaPercentual: "",
+      prazoDiasRepasse: "",
+    };
+
+    const tipo = String(form.tipo || "").trim();
+    const taxaRaw = String(form.taxaPercentual ?? "").trim();
+    const prazoRaw = String(form.prazoDiasRepasse ?? "").trim();
+
+    const taxa = Number(taxaRaw);
+    const prazo = Number(prazoRaw);
+
+    if (!tipo) {
+      novosErros.tipo = "Informe o tipo da forma de pagamento.";
+    }
+
+    if (taxaRaw === "") {
+      novosErros.taxaPercentual = "Informe a taxa percentual.";
+    } else if (Number.isNaN(taxa) || taxa < 0) {
+      novosErros.taxaPercentual =
+        "Informe uma taxa percentual válida maior ou igual a zero.";
+    }
+
+    if (prazoRaw === "") {
+      novosErros.prazoDiasRepasse = "Informe o prazo de repasse.";
+    } else if (Number.isNaN(prazo) || prazo < 0) {
+      novosErros.prazoDiasRepasse =
+        "Informe um prazo de repasse válido maior ou igual a zero.";
+    }
+
+    setFormErrors(novosErros);
+    return !Object.values(novosErros).some(Boolean);
+  };
+
+  const updateFormField = (campo, valor) => {
+    setForm((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
+
+    setFormErrors((prev) => ({
+      ...prev,
+      [campo]: "",
+    }));
+
+    setModalError("");
+    setPageSuccess("");
+  };
+
   const abrirCriacao = () => {
-    setError("");
+    setPageError("");
+    setModalError("");
     setModoEdicao(false);
     setFormaEdicaoId(null);
     setForm(emptyForm);
+    setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
 
   const abrirEdicao = (forma) => {
-    setError("");
+    const ativo = forma?.ativo ?? true;
+
+    if (!ativo) {
+      setPageError("Forma de pagamento inativa não pode ser editada.");
+      return;
+    }
+
+    setPageError("");
+    setModalError("");
     setModoEdicao(true);
     setFormaEdicaoId(forma.id);
     setForm({
@@ -132,50 +219,50 @@ export default function FormasPagamentoPage() {
       taxaPercentual: forma.taxaPercentual ?? 0,
       prazoDiasRepasse: forma.prazoDiasRepasse ?? 0,
     });
+    setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
 
   const fecharModal = () => {
     if (saving) return;
+
     setOpenModal(false);
     setModoEdicao(false);
     setFormaEdicaoId(null);
     setForm(emptyForm);
+    setFormErrors(emptyFormErrors);
+    setModalError("");
   };
 
   const salvarFormaPagamento = async () => {
     try {
       setSaving(true);
-      setError("");
+      setModalError("");
+
+      const isValid = validateForm();
+      if (!isValid) {
+        setModalError("Revise os campos obrigatórios da forma de pagamento.");
+        return;
+      }
 
       const payload = {
         tipo: String(form.tipo || "").trim(),
-        taxaPercentual: Number(form.taxaPercentual || 0),
-        prazoDiasRepasse: Number(form.prazoDiasRepasse || 0),
+        taxaPercentual: Number(form.taxaPercentual),
+        prazoDiasRepasse: Number(form.prazoDiasRepasse),
       };
-
-      if (!payload.tipo) {
-        throw new Error("Informe o tipo da forma de pagamento");
-      }
-
-      if (payload.taxaPercentual < 0) {
-        throw new Error("A taxa percentual não pode ser negativa");
-      }
-
-      if (payload.prazoDiasRepasse < 0) {
-        throw new Error("O prazo de repasse não pode ser negativo");
-      }
 
       if (modoEdicao && formaEdicaoId) {
         await apiService.updateFormaPagamento(formaEdicaoId, payload);
+        setPageSuccess("Forma de pagamento atualizada com sucesso.");
       } else {
         await apiService.createFormaPagamento(payload);
+        setPageSuccess("Forma de pagamento criada com sucesso.");
       }
 
       fecharModal();
       await carregarFormasPagamento();
     } catch (e) {
-      setError(e?.message || "Erro ao salvar forma de pagamento");
+      setModalError(e?.message || "Erro ao salvar forma de pagamento");
     } finally {
       setSaving(false);
     }
@@ -184,17 +271,20 @@ export default function FormasPagamentoPage() {
   const alternarStatus = async (forma) => {
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
+      setPageSuccess("");
 
       if (forma?.ativo === false) {
         await apiService.ativarFormaPagamento(forma.id);
+        setPageSuccess("Forma de pagamento ativada com sucesso.");
       } else {
         await apiService.inativarFormaPagamento(forma.id);
+        setPageSuccess("Forma de pagamento inativada com sucesso.");
       }
 
       await carregarFormasPagamento();
     } catch (e) {
-      setError(e?.message || "Erro ao alterar status da forma de pagamento");
+      setPageError(e?.message || "Erro ao alterar status da forma de pagamento");
       setLoading(false);
     }
   };
@@ -220,50 +310,48 @@ export default function FormasPagamentoPage() {
   return (
     <AppLayout title="Formas de Pagamento">
       <Grid container spacing={2}>
-        {/* Header */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={4}>
-                <Stack spacing={0.5}>
-                  <Typography variant="h6">Formas de Pagamento</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Gerencie os meios de pagamento aceitos pelo sistema.
-                  </Typography>
-                </Stack>
-              </Grid>
+        <Grid item xs={12} sx={pageContentSx}>
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
+            <Stack spacing={2}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} lg={4}>
+                  <Stack spacing={0.5}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Formas de pagamento cadastradas
+                    </Typography>
 
-              <Grid item xs={12} md={8}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}>
-                    <TextField
-                      label="Buscar por tipo"
-                      value={busca}
-                      onChange={(e) => setBusca(e.target.value)}
-                      fullWidth
-                    />
-                  </Grid>
+                    <Typography variant="body2" color="text.secondary">
+                      {formasFiltradas.length} de {total} item(ns)
+                    </Typography>
+                  </Stack>
+                </Grid>
 
-                  <Grid item xs={12} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Tipo</InputLabel>
-                      <Select
-                        label="Tipo"
-                        value={filtroTipo}
-                        onChange={(e) => setFiltroTipo(e.target.value)}
-                      >
-                        <MenuItem value="TODOS">Todos</MenuItem>
-                        {tiposFormaPagamento.map((tipo) => (
-                          <MenuItem key={tipo} value={tipo}>
-                            {tipo.replaceAll("_", " ")}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+                <Grid item xs={12} lg={8}>
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    justifyContent={{ xs: "flex-start", lg: "flex-end" }}
+                    alignItems="center"
+                    flexWrap="wrap"
+                    useFlexGap
+                  >
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={abrirCriacao}
+                    >
+                      Nova Forma
+                    </Button>
 
-                  <Grid item xs={12} md={3}>
                     <FormControlLabel
+                      sx={{ ml: { xs: 0, lg: 1 } }}
                       control={
                         <Switch
                           checked={mostrarInativos}
@@ -272,97 +360,185 @@ export default function FormasPagamentoPage() {
                       }
                       label="Mostrar inativos"
                     />
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <Button
-                      variant="contained"
-                      startIcon={<AddIcon />}
-                      onClick={abrirCriacao}
-                      fullWidth
-                      sx={{ height: "56px" }}
-                    >
-                      Nova Forma
-                    </Button>
-                  </Grid>
+                  </Stack>
                 </Grid>
               </Grid>
-            </Grid>
+
+              <Divider />
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "1fr 1fr 1fr auto",
+                    lg: "minmax(260px, 2fr) minmax(220px, 1.2fr) minmax(180px, 1fr) auto",
+                  },
+                  gap: 2,
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
+                <TextField
+                  label="Buscar por tipo"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  fullWidth
+                />
+
+                <FormControl fullWidth>
+                  <InputLabel>Tipo</InputLabel>
+                  <Select
+                    label="Tipo"
+                    value={filtroTipo}
+                    onChange={(e) => setFiltroTipo(e.target.value)}
+                  >
+                    <MenuItem value="TODOS">Todos</MenuItem>
+                    {tiposFormaPagamento.map((tipo) => (
+                      <MenuItem key={tipo} value={tipo}>
+                        {tipo.replaceAll("_", " ")}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <Box />
+
+                <Button
+                  variant="text"
+                  onClick={() => {
+                    setBusca("");
+                    setFiltroTipo("TODOS");
+                  }}
+                  sx={{
+                    height: 56,
+                    minWidth: 100,
+                    whiteSpace: "nowrap",
+                    justifySelf: { xs: "start", lg: "center" },
+                  }}
+                >
+                  Limpar
+                </Button>
+              </Box>
+            </Stack>
           </Paper>
         </Grid>
 
-        {error && (
-          <Grid item xs={12}>
-            <Alert severity="error">{error}</Alert>
+        {pageSuccess && (
+          <Grid item xs={12} sx={pageContentSx}>
+            <Alert severity="success" onClose={() => setPageSuccess("")}>
+              {pageSuccess}
+            </Alert>
           </Grid>
         )}
 
-        {/* Tabela */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, minHeight: "65vh" }}>
+        {pageError && (
+          <Grid item xs={12} sx={pageContentSx}>
+            <Alert severity="error" onClose={() => setPageError("")}>
+              {pageError}
+            </Alert>
+          </Grid>
+        )}
+
+        <Grid item xs={12} sx={pageContentSx}>
+          <Paper
+            sx={{
+              p: 2,
+              minHeight: "65vh",
+              borderRadius: 3,
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
             {loading ? (
               <Stack alignItems="center" py={6}>
                 <CircularProgress />
               </Stack>
             ) : (
-              <TableContainer sx={{ maxHeight: "65vh" }}>
-                <Table stickyHeader>
+              <TableContainer
+                sx={{
+                  maxHeight: "65vh",
+                  width: "100%",
+                }}
+              >
+                <Table stickyHeader sx={{ width: "100%" }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell><b>ID</b></TableCell>
+                      <TableCell sx={{ width: 80 }}><b>ID</b></TableCell>
                       <TableCell><b>Tipo</b></TableCell>
                       <TableCell align="right"><b>Taxa</b></TableCell>
                       <TableCell align="center"><b>Prazo repasse</b></TableCell>
-                      <TableCell align="center"><b>Status</b></TableCell>
-                      <TableCell><b>Inativado em</b></TableCell>
-                      <TableCell align="center"><b>Ações</b></TableCell>
+                      <TableCell align="center" sx={{ width: 120 }}>
+                        <b>Status</b>
+                      </TableCell>
+                      <TableCell align="center" sx={{ width: 180 }}>
+                        <b>Inativado em</b>
+                      </TableCell>
+                      <TableCell align="center" sx={{ width: 140 }}>
+                        <b>Ações</b>
+                      </TableCell>
                     </TableRow>
                   </TableHead>
 
                   <TableBody>
-                    {formasFiltradas.map((forma) => (
-                      <TableRow key={forma.id} hover>
-                        <TableCell>{forma.id}</TableCell>
-                        <TableCell>{chipTipo(forma.tipo)}</TableCell>
-                        <TableCell align="right">
-                          {percentBR(forma.taxaPercentual)}
-                        </TableCell>
-                        <TableCell align="center">
-                          {forma.prazoDiasRepasse ?? 0} dia(s)
-                        </TableCell>
-                        <TableCell align="center">
-                          {chipStatus(forma.ativo)}
-                        </TableCell>
-                        <TableCell>{dateBR(forma.inativadoEm)}</TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Editar forma de pagamento">
-                            <IconButton onClick={() => abrirEdicao(forma)}>
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
+                    {formasFiltradas.map((forma) => {
+                      const ativa = forma?.ativo !== false;
 
-                          {forma?.ativo === false ? (
-                            <Tooltip title="Ativar forma de pagamento">
-                              <IconButton
-                                color="success"
-                                onClick={() => alternarStatus(forma)}
-                              >
-                                <ToggleOnIcon />
-                              </IconButton>
+                      return (
+                        <TableRow
+                          key={forma.id}
+                          hover
+                          sx={{ opacity: ativa ? 1 : 0.55 }}
+                        >
+                          <TableCell>{forma.id}</TableCell>
+                          <TableCell>{chipTipo(forma.tipo)}</TableCell>
+                          <TableCell align="right">
+                            {percentBR(forma.taxaPercentual)}
+                          </TableCell>
+                          <TableCell align="center">
+                            {forma.prazoDiasRepasse ?? 0} dia(s)
+                          </TableCell>
+                          <TableCell align="center">
+                            {chipStatus(forma.ativo)}
+                          </TableCell>
+                          <TableCell align="center">
+                            {mostrarInativos ? dateBR(forma.inativadoEm) : "-"}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Tooltip title={ativa ? "Editar" : "Forma inativa"}>
+                              <span>
+                                <IconButton
+                                  onClick={() => abrirEdicao(forma)}
+                                  disabled={!ativa}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              </span>
                             </Tooltip>
-                          ) : (
-                            <Tooltip title="Inativar forma de pagamento">
-                              <IconButton
-                                color="warning"
-                                onClick={() => alternarStatus(forma)}
-                              >
-                                <ToggleOffIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+
+                            {forma?.ativo === false ? (
+                              <Tooltip title="Ativar forma de pagamento">
+                                <IconButton
+                                  color="success"
+                                  onClick={() => alternarStatus(forma)}
+                                >
+                                  <ToggleOnIcon />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="Inativar forma de pagamento">
+                                <IconButton
+                                  color="warning"
+                                  onClick={() => alternarStatus(forma)}
+                                >
+                                  <ToggleOffIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
 
                     {formasFiltradas.length === 0 && (
                       <TableRow>
@@ -381,20 +557,31 @@ export default function FormasPagamentoPage() {
         </Grid>
       </Grid>
 
-      {/* Modal criar/editar */}
-      <Dialog open={openModal} onClose={fecharModal} maxWidth="sm" fullWidth>
+      <Dialog
+        open={openModal}
+        onClose={fecharModal}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
         <DialogTitle>
           {modoEdicao ? "Editar Forma de Pagamento" : "Nova Forma de Pagamento"}
         </DialogTitle>
 
         <DialogContent dividers>
           <Stack spacing={2} mt={1}>
-            <FormControl fullWidth>
+            {modalError && (
+              <Alert severity="error" onClose={() => setModalError("")}>
+                {modalError}
+              </Alert>
+            )}
+
+            <FormControl fullWidth error={!!formErrors.tipo}>
               <InputLabel>Tipo</InputLabel>
               <Select
                 label="Tipo"
                 value={form.tipo}
-                onChange={(e) => setForm((prev) => ({ ...prev, tipo: e.target.value }))}
+                onChange={(e) => updateFormField("tipo", e.target.value)}
               >
                 {tiposFormaPagamento.map((tipo) => (
                   <MenuItem key={tipo} value={tipo}>
@@ -402,6 +589,7 @@ export default function FormasPagamentoPage() {
                   </MenuItem>
                 ))}
               </Select>
+              <FormHelperText>{formErrors.tipo}</FormHelperText>
             </FormControl>
 
             <TextField
@@ -410,8 +598,10 @@ export default function FormasPagamentoPage() {
               inputProps={{ min: 0, step: 0.01 }}
               value={form.taxaPercentual}
               onChange={(e) =>
-                setForm((prev) => ({ ...prev, taxaPercentual: e.target.value }))
+                updateFormField("taxaPercentual", e.target.value)
               }
+              error={!!formErrors.taxaPercentual}
+              helperText={formErrors.taxaPercentual}
               fullWidth
             />
 
@@ -421,8 +611,10 @@ export default function FormasPagamentoPage() {
               inputProps={{ min: 0, step: 1 }}
               value={form.prazoDiasRepasse}
               onChange={(e) =>
-                setForm((prev) => ({ ...prev, prazoDiasRepasse: e.target.value }))
+                updateFormField("prazoDiasRepasse", e.target.value)
               }
+              error={!!formErrors.prazoDiasRepasse}
+              helperText={formErrors.prazoDiasRepasse}
               fullWidth
             />
           </Stack>

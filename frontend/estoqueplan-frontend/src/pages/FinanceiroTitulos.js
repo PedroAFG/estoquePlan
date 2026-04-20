@@ -12,6 +12,7 @@ import {
   Alert,
   TextField,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -92,6 +93,16 @@ const emptyCreate = {
   intervaloDias: 30,
 };
 
+const emptyCreateErrors = {
+  descricao: "",
+  valorTotal: "",
+  categoriaId: "",
+  formaPagamentoId: "",
+  numeroParcelas: "",
+  primeiroVencimento: "",
+  intervaloDias: "",
+};
+
 const emptyBaixa = {
   dataBaixa: "",
   descricao: "",
@@ -108,7 +119,14 @@ const emptyFilters = {
 
 export default function FinanceiroTitulos() {
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [pageSuccess, setPageSuccess] = useState("");
+  const [createSuccess, setCreateSuccess] = useState("");
+  const [baixaSuccess, setBaixaSuccess] = useState("");
+
+  const [pageError, setPageError] = useState("");
+  const [createError, setCreateError] = useState("");
+  const [detailError, setDetailError] = useState("");
+  const [baixaError, setBaixaError] = useState("");
 
   const [titulos, setTitulos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -118,6 +136,7 @@ export default function FinanceiroTitulos() {
 
   const [openCreate, setOpenCreate] = useState(false);
   const [formCreate, setFormCreate] = useState(emptyCreate);
+  const [createErrors, setCreateErrors] = useState(emptyCreateErrors);
 
   const [openDetail, setOpenDetail] = useState(false);
   const [detail, setDetail] = useState(null);
@@ -136,7 +155,7 @@ export default function FinanceiroTitulos() {
   const loadData = async () => {
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
 
       const [titulosData, catData, fpData] = await Promise.all([
         apiService.getTitulosFinanceiros(),
@@ -148,7 +167,7 @@ export default function FinanceiroTitulos() {
       setCategorias(catData || []);
       setFormasPagamento(fpData || []);
     } catch (e) {
-      setError(e?.message || "Erro ao carregar financeiro");
+      setPageError(e?.message || "Erro ao carregar financeiro");
     } finally {
       setLoading(false);
     }
@@ -227,15 +246,89 @@ export default function FinanceiroTitulos() {
       .sort((a, b2) => Number(b2.id) - Number(a.id));
   }, [titulos, filters]);
 
+  const categoriasDoTipo = useMemo(() => {
+    return (categorias || []).filter(
+      (c) => (c.ativo ?? true) === true && c.tipo === formCreate.tipo
+    );
+  }, [categorias, formCreate.tipo]);
+
+  const validateCreateForm = () => {
+    const novosErros = {
+      descricao: "",
+      valorTotal: "",
+      categoriaId: "",
+      formaPagamentoId: "",
+      numeroParcelas: "",
+      primeiroVencimento: "",
+      intervaloDias: "",
+    };
+
+    const descricao = String(formCreate.descricao || "").trim();
+    const valorTotal = Number(formCreate.valorTotal || 0);
+    const categoriaId = Number(formCreate.categoriaId);
+    const formaPagamentoId = Number(formCreate.formaPagamentoId);
+    const numeroParcelas = Number(formCreate.numeroParcelas || 0);
+    const primeiroVencimento = String(formCreate.primeiroVencimento || "").trim();
+    const intervaloDias = Number(formCreate.intervaloDias || 0);
+
+    if (!descricao) {
+      novosErros.descricao = "Informe a descrição.";
+    }
+
+    if (!valorTotal || valorTotal <= 0) {
+      novosErros.valorTotal = "Informe um valor total maior que zero.";
+    }
+
+    if (!categoriaId) {
+      novosErros.categoriaId = "Selecione uma categoria financeira.";
+    }
+
+    if (!formaPagamentoId) {
+      novosErros.formaPagamentoId = "Selecione uma forma de pagamento.";
+    }
+
+    if (!numeroParcelas || numeroParcelas < 1) {
+      novosErros.numeroParcelas = "Informe ao menos 1 parcela.";
+    }
+
+    if (!primeiroVencimento) {
+      novosErros.primeiroVencimento = "Informe o primeiro vencimento.";
+    }
+
+    if (!intervaloDias || intervaloDias < 1) {
+      novosErros.intervaloDias = "Informe um intervalo válido.";
+    }
+
+    setCreateErrors(novosErros);
+
+    return !Object.values(novosErros).some(Boolean);
+  };
+
+  const updateCreateField = (campo, valor) => {
+    setFormCreate((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
+
+    setCreateErrors((prev) => ({
+      ...prev,
+      [campo]: "",
+    }));
+
+    setCreateError("");
+    setCreateSuccess("");
+  };
+
   const openDetalhes = async (id) => {
     try {
-      setError("");
+      setDetailError("");
       setLoading(true);
+
       const data = await apiService.getTituloFinanceiroById(id);
       setDetail(data);
       setOpenDetail(true);
     } catch (e) {
-      setError(e?.message || "Erro ao abrir detalhes");
+      setDetailError(e?.message || "Erro ao abrir detalhes");
     } finally {
       setLoading(false);
     }
@@ -244,29 +337,32 @@ export default function FinanceiroTitulos() {
   const closeDetalhes = () => {
     setOpenDetail(false);
     setDetail(null);
+    setDetailError("");
   };
 
   const handleOpenCreate = () => {
-    setError("");
+    setCreateError("");
+    setCreateSuccess("");
+    setCreateErrors(emptyCreateErrors);
     setFormCreate(emptyCreate);
     setOpenCreate(true);
   };
 
   const closeCreate = () => {
     setOpenCreate(false);
+    setCreateError("");
+    setCreateSuccess("");
+    setCreateErrors(emptyCreateErrors);
     setFormCreate(emptyCreate);
   };
 
-  const categoriasDoTipo = useMemo(() => {
-    const tipo = formCreate.tipo;
-    return (categorias || []).filter(
-      (c) => (c.ativo ?? true) === true && c.tipo === tipo
-    );
-  }, [categorias, formCreate.tipo]);
-
   const handleCreate = async () => {
     try {
-      setError("");
+      setCreateError("");
+      setCreateSuccess("");
+
+      const isValid = validateCreateForm();
+      if (!isValid) return;
 
       const payload = {
         tipo: formCreate.tipo,
@@ -279,33 +375,14 @@ export default function FinanceiroTitulos() {
         intervaloDias: Number(formCreate.intervaloDias || 30),
       };
 
-      if (!payload.descricao) throw new Error("Descrição é obrigatória");
-      if (!payload.valorTotal || payload.valorTotal <= 0) {
-        throw new Error("Valor total inválido");
-      }
-      if (!payload.categoriaId) {
-        throw new Error("Selecione uma categoria financeira");
-      }
-      if (!payload.formaPagamentoId) {
-        throw new Error("Selecione a forma de pagamento");
-      }
-      if (!payload.primeiroVencimento) {
-        throw new Error("Informe o primeiro vencimento");
-      }
-      if (payload.numeroParcelas < 1) {
-        throw new Error("Número de parcelas inválido");
-      }
-      if (payload.intervaloDias < 1) {
-        throw new Error("Intervalo de dias inválido");
-      }
-
       setLoading(true);
       const created = await apiService.createTituloFinanceiro(payload);
       setTitulos((prev) => [created, ...(prev || [])]);
 
+      setPageSuccess("Título criado com sucesso.");
       closeCreate();
     } catch (e) {
-      setError(e?.message || "Erro ao criar título");
+      setCreateError(e?.message || "Erro ao criar título");
     } finally {
       setLoading(false);
     }
@@ -314,7 +391,8 @@ export default function FinanceiroTitulos() {
   const canBaixar = (p) => p?.status === "PENDENTE" || p?.status === "ATRASADO";
 
   const openBaixar = (tituloId, parcelaId) => {
-    setError("");
+    setBaixaError("");
+    setBaixaSuccess("");
     setBaixaTarget({ tituloId, parcelaId });
     setFormBaixa({
       dataBaixa: new Date().toISOString().slice(0, 10),
@@ -326,13 +404,17 @@ export default function FinanceiroTitulos() {
   const closeBaixar = () => {
     setOpenBaixa(false);
     setBaixaTarget(null);
+    setBaixaError("");
+    setBaixaSuccess("");
     setFormBaixa(emptyBaixa);
   };
 
   const handleBaixar = async () => {
     try {
       if (!baixaTarget?.parcelaId) return;
-      setError("");
+
+      setBaixaError("");
+      setBaixaSuccess("");
 
       const payload = {
         dataBaixa: String(formBaixa.dataBaixa || "").trim(),
@@ -354,9 +436,10 @@ export default function FinanceiroTitulos() {
       const all = await apiService.getTitulosFinanceiros();
       setTitulos(all || []);
 
+      setPageSuccess("Parcela baixada com sucesso.");
       closeBaixar();
     } catch (e) {
-      setError(e?.message || "Erro ao baixar parcela");
+      setBaixaError(e?.message || "Erro ao baixar parcela");
     } finally {
       setLoading(false);
     }
@@ -544,9 +627,19 @@ export default function FinanceiroTitulos() {
           </Paper>
         </Grid>
 
-        {error && (
+        {pageError && (
           <Grid item xs={12} sx={pageContentSx}>
-            <Alert severity="error">{error}</Alert>
+            <Alert severity="error" onClose={() => setPageError("")}>
+              {pageError}
+            </Alert>
+          </Grid>
+        )}
+
+        {pageSuccess && (
+          <Grid item xs={12} sx={pageContentSx}>
+            <Alert severity="success" onClose={() => setPageSuccess("")}>
+              {pageSuccess}
+            </Alert>
           </Grid>
         )}
 
@@ -661,6 +754,12 @@ export default function FinanceiroTitulos() {
 
         <DialogContent dividers>
           <Stack spacing={2} mt={1}>
+            {createError && (
+              <Alert severity="error" onClose={() => setCreateError("")}>
+                {createError}
+              </Alert>
+            )}
+
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
@@ -668,13 +767,22 @@ export default function FinanceiroTitulos() {
                   <Select
                     label="Tipo"
                     value={formCreate.tipo}
-                    onChange={(e) =>
-                      setFormCreate((f) => ({
-                        ...f,
-                        tipo: e.target.value,
+                    onChange={(e) => {
+                      const novoTipo = e.target.value;
+
+                      setFormCreate((prev) => ({
+                        ...prev,
+                        tipo: novoTipo,
                         categoriaId: "",
-                      }))
-                    }
+                      }));
+
+                      setCreateErrors((prev) => ({
+                        ...prev,
+                        categoriaId: "",
+                      }));
+
+                      setCreateError("");
+                    }}
                   >
                     <MenuItem value="A_RECEBER">A receber</MenuItem>
                     <MenuItem value="A_PAGAR">A pagar</MenuItem>
@@ -686,12 +794,9 @@ export default function FinanceiroTitulos() {
                 <TextField
                   label="Descrição"
                   value={formCreate.descricao}
-                  onChange={(e) =>
-                    setFormCreate((f) => ({
-                      ...f,
-                      descricao: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => updateCreateField("descricao", e.target.value)}
+                  error={!!createErrors.descricao}
+                  helperText={createErrors.descricao}
                   fullWidth
                 />
               </Grid>
@@ -702,28 +807,20 @@ export default function FinanceiroTitulos() {
                   type="number"
                   inputProps={{ min: 0, step: 0.01 }}
                   value={formCreate.valorTotal}
-                  onChange={(e) =>
-                    setFormCreate((f) => ({
-                      ...f,
-                      valorTotal: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => updateCreateField("valorTotal", e.target.value)}
+                  error={!!createErrors.valorTotal}
+                  helperText={createErrors.valorTotal}
                   fullWidth
                 />
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <FormControl fullWidth>
+                <FormControl fullWidth error={!!createErrors.categoriaId}>
                   <InputLabel>Categoria financeira</InputLabel>
                   <Select
                     label="Categoria financeira"
                     value={formCreate.categoriaId}
-                    onChange={(e) =>
-                      setFormCreate((f) => ({
-                        ...f,
-                        categoriaId: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => updateCreateField("categoriaId", e.target.value)}
                   >
                     {categoriasDoTipo.map((c) => (
                       <MenuItem key={c.id} value={c.id}>
@@ -731,20 +828,18 @@ export default function FinanceiroTitulos() {
                       </MenuItem>
                     ))}
                   </Select>
+                  <FormHelperText>{createErrors.categoriaId}</FormHelperText>
                 </FormControl>
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <FormControl fullWidth>
+                <FormControl fullWidth error={!!createErrors.formaPagamentoId}>
                   <InputLabel>Forma de pagamento</InputLabel>
                   <Select
                     label="Forma de pagamento"
                     value={formCreate.formaPagamentoId}
                     onChange={(e) =>
-                      setFormCreate((f) => ({
-                        ...f,
-                        formaPagamentoId: e.target.value,
-                      }))
+                      updateCreateField("formaPagamentoId", e.target.value)
                     }
                   >
                     {(formasPagamento || [])
@@ -755,6 +850,7 @@ export default function FinanceiroTitulos() {
                         </MenuItem>
                       ))}
                   </Select>
+                  <FormHelperText>{createErrors.formaPagamentoId}</FormHelperText>
                 </FormControl>
               </Grid>
             </Grid>
@@ -773,11 +869,10 @@ export default function FinanceiroTitulos() {
                   inputProps={{ min: 1, step: 1 }}
                   value={formCreate.numeroParcelas}
                   onChange={(e) =>
-                    setFormCreate((f) => ({
-                      ...f,
-                      numeroParcelas: e.target.value,
-                    }))
+                    updateCreateField("numeroParcelas", e.target.value)
                   }
+                  error={!!createErrors.numeroParcelas}
+                  helperText={createErrors.numeroParcelas}
                   fullWidth
                 />
               </Grid>
@@ -788,11 +883,10 @@ export default function FinanceiroTitulos() {
                   type="date"
                   value={formCreate.primeiroVencimento}
                   onChange={(e) =>
-                    setFormCreate((f) => ({
-                      ...f,
-                      primeiroVencimento: e.target.value,
-                    }))
+                    updateCreateField("primeiroVencimento", e.target.value)
                   }
+                  error={!!createErrors.primeiroVencimento}
+                  helperText={createErrors.primeiroVencimento}
                   fullWidth
                   InputLabelProps={{ shrink: true }}
                 />
@@ -805,11 +899,10 @@ export default function FinanceiroTitulos() {
                   inputProps={{ min: 1, step: 1 }}
                   value={formCreate.intervaloDias}
                   onChange={(e) =>
-                    setFormCreate((f) => ({
-                      ...f,
-                      intervaloDias: e.target.value,
-                    }))
+                    updateCreateField("intervaloDias", e.target.value)
                   }
+                  error={!!createErrors.intervaloDias}
+                  helperText={createErrors.intervaloDias}
                   fullWidth
                 />
               </Grid>
@@ -847,6 +940,12 @@ export default function FinanceiroTitulos() {
       >
         <DialogTitle>Detalhes do título</DialogTitle>
         <DialogContent dividers>
+          {detailError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDetailError("")}>
+              {detailError}
+            </Alert>
+          )}
+
           {!detail ? (
             <Typography color="text.secondary">Nada para mostrar.</Typography>
           ) : (
@@ -857,9 +956,7 @@ export default function FinanceiroTitulos() {
                     <Typography variant="body2" color="text.secondary">
                       ID
                     </Typography>
-                    <Typography sx={{ fontWeight: 900 }}>
-                      #{detail.id}
-                    </Typography>
+                    <Typography sx={{ fontWeight: 900 }}>#{detail.id}</Typography>
                   </Grid>
 
                   <Grid item xs={12} md={3}>
@@ -1003,6 +1100,12 @@ export default function FinanceiroTitulos() {
         <DialogTitle>Baixar parcela</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} mt={1}>
+            {baixaError && (
+              <Alert severity="error" onClose={() => setBaixaError("")}>
+                {baixaError}
+              </Alert>
+            )}
+
             <TextField
               label="Data da baixa"
               type="date"

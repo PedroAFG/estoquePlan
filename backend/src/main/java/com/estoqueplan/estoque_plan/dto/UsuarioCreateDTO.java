@@ -5,6 +5,7 @@ import com.estoqueplan.estoque_plan.model.Usuario;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 public class UsuarioCreateDTO {
@@ -16,6 +17,8 @@ public class UsuarioCreateDTO {
     private String login;
     private String senha;  // A senha pode ser recebida na criação
     private Usuario.Permissao permissao;
+    private Boolean ativo;
+    private LocalDateTime inativadoEm;
 
 }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import apiService from "../services/api";
+import { PatternFormat } from "react-number-format";
 
 import {
   Grid,
@@ -27,9 +28,12 @@ import {
   Switch,
   Tooltip,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
+  Divider,
+  Box,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -58,10 +62,83 @@ const emptyForm = {
   capitalSocial: "",
 };
 
+const emptyFormErrors = {
+  tipo: "",
+  nome: "",
+  email: "",
+  telefone: "",
+  endereco: "",
+  cpf: "",
+  cnpj: "",
+  capitalSocial: "",
+};
+
+function somenteNumeros(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function validarEmail(email) {
+  const valor = String(email || "").trim();
+  if (!valor) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor);
+}
+
+function validarCPF(cpf) {
+  const valor = somenteNumeros(cpf);
+
+  if (!valor || valor.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(valor)) return false;
+
+  let soma = 0;
+  for (let i = 0; i < 9; i += 1) {
+    soma += Number(valor.charAt(i)) * (10 - i);
+  }
+
+  let resto = (soma * 10) % 11;
+  if (resto === 10) resto = 0;
+  if (resto !== Number(valor.charAt(9))) return false;
+
+  soma = 0;
+  for (let i = 0; i < 10; i += 1) {
+    soma += Number(valor.charAt(i)) * (11 - i);
+  }
+
+  resto = (soma * 10) % 11;
+  if (resto === 10) resto = 0;
+
+  return resto === Number(valor.charAt(10));
+}
+
+function validarCNPJ(cnpj) {
+  const valor = somenteNumeros(cnpj);
+
+  if (!valor || valor.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(valor)) return false;
+
+  const calcularDigito = (base, pesos) => {
+    const soma = base.split("").reduce((acc, numero, index) => {
+      return acc + Number(numero) * pesos[index];
+    }, 0);
+
+    const resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  };
+
+  const base12 = valor.slice(0, 12);
+  const digito1 = calcularDigito(base12, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const base13 = base12 + digito1;
+  const digito2 = calcularDigito(base13, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+
+  return valor === `${base12}${digito1}${digito2}`;
+}
+
 export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+
+  const [pageError, setPageError] = useState("");
+  const [pageSuccess, setPageSuccess] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const [clientes, setClientes] = useState([]);
   const [mostrarInativos, setMostrarInativos] = useState(true);
@@ -71,16 +148,23 @@ export default function ClientesPage() {
   const [modoEdicao, setModoEdicao] = useState(false);
   const [clienteEdicaoId, setClienteEdicaoId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState(emptyFormErrors);
+
+  const total = clientes.length;
+
+  const pageContentSx = {
+    width: "100%",
+  };
 
   const carregarClientes = async () => {
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
 
       const data = await apiService.getClientes();
       setClientes(data || []);
     } catch (e) {
-      setError(e?.message || "Erro ao carregar clientes");
+      setPageError(e?.message || "Erro ao carregar clientes");
     } finally {
       setLoading(false);
     }
@@ -111,11 +195,28 @@ export default function ClientesPage() {
       .sort((a, b) => Number(b.id) - Number(a.id));
   }, [clientes, busca, mostrarInativos]);
 
+  const updateFormField = (campo, valor) => {
+    setForm((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
+
+    setFormErrors((prev) => ({
+      ...prev,
+      [campo]: "",
+    }));
+
+    setModalError("");
+    setPageSuccess("");
+  };
+
   const abrirCriacao = () => {
-    setError("");
+    setPageError("");
+    setModalError("");
     setModoEdicao(false);
     setClienteEdicaoId(null);
     setForm(emptyForm);
+    setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
 
@@ -139,7 +240,7 @@ export default function ClientesPage() {
 
   const abrirEdicao = async (cliente) => {
     try {
-      setError("");
+      setPageError("");
       setLoading(true);
 
       const data = await apiService.getClienteById(cliente.id);
@@ -147,9 +248,11 @@ export default function ClientesPage() {
       setModoEdicao(true);
       setClienteEdicaoId(cliente.id);
       setForm(mapearTipoClienteParaForm(data));
+      setFormErrors(emptyFormErrors);
+      setModalError("");
       setOpenModal(true);
     } catch (e) {
-      setError(e?.message || "Erro ao buscar dados do cliente");
+      setPageError(e?.message || "Erro ao buscar dados do cliente");
     } finally {
       setLoading(false);
     }
@@ -161,43 +264,97 @@ export default function ClientesPage() {
     setModoEdicao(false);
     setClienteEdicaoId(null);
     setForm(emptyForm);
+    setFormErrors(emptyFormErrors);
+    setModalError("");
+  };
+
+  const validateForm = () => {
+    const novosErros = {
+      tipo: "",
+      nome: "",
+      email: "",
+      telefone: "",
+      endereco: "",
+      cpf: "",
+      cnpj: "",
+      capitalSocial: "",
+    };
+
+    const nome = String(form.nome || "").trim();
+    const email = String(form.email || "").trim();
+    const telefone = somenteNumeros(form.telefone);
+    const endereco = String(form.endereco || "").trim();
+    const cpf = somenteNumeros(form.cpf);
+    const cnpj = somenteNumeros(form.cnpj);
+    const capitalSocialRaw = String(form.capitalSocial ?? "").trim();
+
+    if (!nome) {
+      novosErros.nome = "Informe o nome do cliente.";
+    }
+
+    if (!email) {
+      novosErros.email = "Informe o e-mail.";
+    } else if (!validarEmail(email)) {
+      novosErros.email = "Informe um e-mail válido.";
+    }
+
+    if (!telefone) {
+      novosErros.telefone = "Informe o telefone.";
+    } else if (telefone.length < 10 || telefone.length > 11) {
+      novosErros.telefone = "Informe um telefone válido.";
+    }
+
+    if (!endereco) {
+      novosErros.endereco = "Informe o endereço.";
+    }
+
+    if (form.tipo === "pessoaFisica") {
+      if (!cpf) {
+        novosErros.cpf = "Informe o CPF do cliente.";
+      } else if (cpf.length !== 11 || !validarCPF(cpf)) {
+        novosErros.cpf = "Informe um CPF válido.";
+      }
+    }
+
+    if (form.tipo === "pessoaJuridica") {
+      if (!cnpj) {
+        novosErros.cnpj = "Informe o CNPJ do cliente.";
+      } else if (cnpj.length !== 14 || !validarCNPJ(cnpj)) {
+        novosErros.cnpj = "Informe um CNPJ válido.";
+      }
+
+      if (capitalSocialRaw !== "") {
+        const capitalSocial = Number(capitalSocialRaw);
+        if (Number.isNaN(capitalSocial) || capitalSocial < 0) {
+          novosErros.capitalSocial = "Informe um capital social válido.";
+        }
+      }
+    }
+
+    setFormErrors(novosErros);
+
+    return !Object.values(novosErros).some(Boolean);
   };
 
   const montarPayload = () => {
     const base = {
       nome: String(form.nome || "").trim(),
       email: String(form.email || "").trim(),
-      telefone: String(form.telefone || "").trim(),
+      telefone: somenteNumeros(form.telefone),
       endereco: String(form.endereco || "").trim(),
       tipo: form.tipo,
     };
 
-    if (!base.nome) {
-      throw new Error("Informe o nome do cliente");
-    }
-
     if (form.tipo === "pessoaFisica") {
-      const cpf = String(form.cpf || "").trim();
-
-      if (!cpf) {
-        throw new Error("Informe o CPF do cliente");
-      }
-
       return {
         ...base,
-        cpf,
+        cpf: somenteNumeros(form.cpf),
       };
-    }
-
-    const cnpj = String(form.cnpj || "").trim();
-
-    if (!cnpj) {
-      throw new Error("Informe o CNPJ do cliente");
     }
 
     return {
       ...base,
-      cnpj,
+      cnpj: somenteNumeros(form.cnpj),
       capitalSocial:
         form.capitalSocial === "" || form.capitalSocial === null
           ? null
@@ -208,20 +365,28 @@ export default function ClientesPage() {
   const salvarCliente = async () => {
     try {
       setSaving(true);
-      setError("");
+      setModalError("");
+
+      const isValid = validateForm();
+      if (!isValid) {
+        setModalError("Revise os campos obrigatórios do cliente.");
+        return;
+      }
 
       const payload = montarPayload();
 
       if (modoEdicao && clienteEdicaoId) {
         await apiService.updateCliente(clienteEdicaoId, payload);
+        setPageSuccess("Cliente atualizado com sucesso.");
       } else {
         await apiService.createCliente(payload);
+        setPageSuccess("Cliente criado com sucesso.");
       }
 
       fecharModal();
       await carregarClientes();
     } catch (e) {
-      setError(e?.message || "Erro ao salvar cliente");
+      setModalError(e?.message || "Erro ao salvar cliente");
     } finally {
       setSaving(false);
     }
@@ -230,18 +395,20 @@ export default function ClientesPage() {
   const alternarStatus = async (cliente) => {
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
+      setPageSuccess("");
 
       if (cliente?.ativo === false) {
         await apiService.ativarCliente(cliente.id);
+        setPageSuccess("Cliente ativado com sucesso.");
       } else {
         await apiService.inativarCliente(cliente.id);
+        setPageSuccess("Cliente inativado com sucesso.");
       }
 
-      
       await carregarClientes();
     } catch (e) {
-      setError(e?.message || "Erro ao alterar status do cliente");
+      setPageError(e?.message || "Erro ao alterar status do cliente");
       setLoading(false);
     }
   };
@@ -255,12 +422,14 @@ export default function ClientesPage() {
 
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
+      setPageSuccess("");
 
       await apiService.deleteCliente(cliente.id);
+      setPageSuccess("Cliente excluído com sucesso.");
       await carregarClientes();
     } catch (e) {
-      setError(e?.message || "Erro ao excluir cliente");
+      setPageError(e?.message || "Erro ao excluir cliente");
       setLoading(false);
     }
   };
@@ -291,31 +460,47 @@ export default function ClientesPage() {
   return (
     <AppLayout title="Clientes">
       <Grid container spacing={2}>
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={4}>
-                <Stack spacing={0.5}>
-                  <Typography variant="h6">Clientes</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Gerencie os clientes pessoas físicas e jurídicas do sistema.
-                  </Typography>
-                </Stack>
-              </Grid>
+        <Grid item xs={12} sx={pageContentSx}>
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
+            <Stack spacing={2}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} lg={4}>
+                  <Stack spacing={0.5}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Clientes cadastrados
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {clientesFiltrados.length} de {total} item(ns)
+                    </Typography>
+                  </Stack>
+                </Grid>
 
-              <Grid item xs={12} md={8}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={5}>
-                    <TextField
-                      label="Buscar cliente"
-                      value={busca}
-                      onChange={(e) => setBusca(e.target.value)}
-                      fullWidth
-                    />
-                  </Grid>
+                <Grid item xs={12} lg={8}>
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    justifyContent={{ xs: "flex-start", lg: "flex-end" }}
+                    alignItems="center"
+                    flexWrap="wrap"
+                    useFlexGap
+                  >
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={abrirCriacao}
+                    >
+                      Novo Cliente
+                    </Button>
 
-                  <Grid item xs={12} md={4}>
                     <FormControlLabel
+                      sx={{ ml: { xs: 0, lg: 1 } }}
                       control={
                         <Switch
                           checked={mostrarInativos}
@@ -324,50 +509,92 @@ export default function ClientesPage() {
                       }
                       label="Mostrar inativos"
                     />
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <Button
-                      variant="contained"
-                      startIcon={<AddIcon />}
-                      onClick={abrirCriacao}
-                      fullWidth
-                      sx={{ height: "56px" }}
-                    >
-                      Novo Cliente
-                    </Button>
-                  </Grid>
+                  </Stack>
                 </Grid>
               </Grid>
-            </Grid>
+
+              <Divider />
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "1fr auto",
+                    lg: "minmax(260px, 2fr) auto",
+                  },
+                  gap: 2,
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
+                <TextField
+                  label="Buscar cliente"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  fullWidth
+                />
+
+                <Button
+                  variant="text"
+                  onClick={() => setBusca("")}
+                  sx={{
+                    height: 56,
+                    minWidth: 100,
+                    whiteSpace: "nowrap",
+                    justifySelf: { xs: "start", lg: "center" },
+                  }}
+                >
+                  Limpar
+                </Button>
+              </Box>
+            </Stack>
           </Paper>
         </Grid>
 
-        {error && (
-          <Grid item xs={12}>
-            <Alert severity="error">{error}</Alert>
+        {pageSuccess && (
+          <Grid item xs={12} sx={pageContentSx}>
+            <Alert severity="success" onClose={() => setPageSuccess("")}>
+              {pageSuccess}
+            </Alert>
           </Grid>
         )}
 
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, minHeight: "65vh" }}>
+        {pageError && (
+          <Grid item xs={12} sx={pageContentSx}>
+            <Alert severity="error" onClose={() => setPageError("")}>
+              {pageError}
+            </Alert>
+          </Grid>
+        )}
+
+        <Grid item xs={12} sx={pageContentSx}>
+          <Paper
+            sx={{
+              p: 2,
+              minHeight: "65vh",
+              borderRadius: 3,
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
             {loading ? (
               <Stack alignItems="center" py={6}>
                 <CircularProgress />
               </Stack>
             ) : (
-              <TableContainer sx={{ maxHeight: "65vh" }}>
-                <Table stickyHeader>
+              <TableContainer sx={{ maxHeight: "65vh", width: "100%" }}>
+                <Table stickyHeader sx={{ width: "100%" }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell><b>ID</b></TableCell>
-                      <TableCell><b>Tipo</b></TableCell>
+                      <TableCell sx={{ width: 80 }}><b>ID</b></TableCell>
+                      <TableCell sx={{ width: 100 }}><b>Tipo</b></TableCell>
                       <TableCell><b>Nome</b></TableCell>
                       <TableCell><b>E-mail</b></TableCell>
                       <TableCell><b>Telefone</b></TableCell>
-                      <TableCell align="center"><b>Status</b></TableCell>
-                      <TableCell><b>Inativado em</b></TableCell>
-                      <TableCell align="center"><b>Ações</b></TableCell>
+                      <TableCell align="center" sx={{ width: 120 }}><b>Status</b></TableCell>
+                      <TableCell align="center" sx={{ width: 180 }}><b>Inativado em</b></TableCell>
+                      <TableCell align="center" sx={{ width: 160 }}><b>Ações</b></TableCell>
                     </TableRow>
                   </TableHead>
 
@@ -382,7 +609,9 @@ export default function ClientesPage() {
                         <TableCell align="center">
                           {chipStatus(cliente.ativo)}
                         </TableCell>
-                        <TableCell>{dateBR(cliente.inativadoEm)}</TableCell>
+                        <TableCell align="center">
+                          {mostrarInativos ? dateBR(cliente.inativadoEm) : "-"}
+                        </TableCell>
                         <TableCell align="center">
                           <Tooltip title="Editar cliente">
                             <IconButton onClick={() => abrirEdicao(cliente)}>
@@ -439,34 +668,59 @@ export default function ClientesPage() {
         </Grid>
       </Grid>
 
-      <Dialog open={openModal} onClose={fecharModal} maxWidth="md" fullWidth>
+      <Dialog
+        open={openModal}
+        onClose={fecharModal}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
         <DialogTitle>
           {modoEdicao ? "Editar Cliente" : "Novo Cliente"}
         </DialogTitle>
 
         <DialogContent dividers>
           <Stack spacing={2} mt={1}>
+            {modalError && (
+              <Alert severity="error" onClose={() => setModalError("")}>
+                {modalError}
+              </Alert>
+            )}
+
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
-                <FormControl fullWidth>
+                <FormControl fullWidth error={!!formErrors.tipo}>
                   <InputLabel>Tipo</InputLabel>
                   <Select
                     label="Tipo"
                     value={form.tipo}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const novoTipo = e.target.value;
+
                       setForm((prev) => ({
                         ...prev,
-                        tipo: e.target.value,
+                        tipo: novoTipo,
                         cpf: "",
                         cnpj: "",
                         capitalSocial: "",
-                      }))
-                    }
+                      }));
+
+                      setFormErrors((prev) => ({
+                        ...prev,
+                        tipo: "",
+                        cpf: "",
+                        cnpj: "",
+                        capitalSocial: "",
+                      }));
+
+                      setModalError("");
+                    }}
                     disabled={modoEdicao}
                   >
                     <MenuItem value="pessoaFisica">Pessoa Física</MenuItem>
                     <MenuItem value="pessoaJuridica">Pessoa Jurídica</MenuItem>
                   </Select>
+                  <FormHelperText>{formErrors.tipo}</FormHelperText>
                 </FormControl>
               </Grid>
 
@@ -474,9 +728,9 @@ export default function ClientesPage() {
                 <TextField
                   label="Nome"
                   value={form.nome}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, nome: e.target.value }))
-                  }
+                  onChange={(e) => updateFormField("nome", e.target.value)}
+                  error={!!formErrors.nome}
+                  helperText={formErrors.nome}
                   fullWidth
                 />
               </Grid>
@@ -485,20 +739,26 @@ export default function ClientesPage() {
                 <TextField
                   label="E-mail"
                   value={form.email}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, email: e.target.value }))
-                  }
+                  onChange={(e) => updateFormField("email", e.target.value)}
+                  error={!!formErrors.email}
+                  helperText={formErrors.email}
                   fullWidth
                 />
               </Grid>
 
               <Grid item xs={12} md={6}>
-                <TextField
+                <PatternFormat
+                  format="(##) #####-####"
+                  allowEmptyFormatting={false}
+                  mask="_"
+                  customInput={TextField}
                   label="Telefone"
                   value={form.telefone}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, telefone: e.target.value }))
-                  }
+                  onValueChange={(values) => {
+                    updateFormField("telefone", values.formattedValue);
+                  }}
+                  error={!!formErrors.telefone}
+                  helperText={formErrors.telefone}
                   fullWidth
                 />
               </Grid>
@@ -507,33 +767,45 @@ export default function ClientesPage() {
                 <TextField
                   label="Endereço"
                   value={form.endereco}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, endereco: e.target.value }))
-                  }
+                  onChange={(e) => updateFormField("endereco", e.target.value)}
+                  error={!!formErrors.endereco}
+                  helperText={formErrors.endereco}
                   fullWidth
                 />
               </Grid>
 
               {form.tipo === "pessoaFisica" ? (
                 <Grid item xs={12} md={6}>
-                  <TextField
+                  <PatternFormat
+                    format="###.###.###-##"
+                    allowEmptyFormatting={false}
+                    mask="_"
+                    customInput={TextField}
                     label="CPF"
                     value={form.cpf}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, cpf: e.target.value }))
-                    }
+                    onValueChange={(values) => {
+                      updateFormField("cpf", values.formattedValue);
+                    }}
+                    error={!!formErrors.cpf}
+                    helperText={formErrors.cpf}
                     fullWidth
                   />
                 </Grid>
               ) : (
                 <>
                   <Grid item xs={12} md={6}>
-                    <TextField
+                    <PatternFormat
+                      format="##.###.###/####-##"
+                      allowEmptyFormatting={false}
+                      mask="_"
+                      customInput={TextField}
                       label="CNPJ"
                       value={form.cnpj}
-                      onChange={(e) =>
-                        setForm((prev) => ({ ...prev, cnpj: e.target.value }))
-                      }
+                      onValueChange={(values) => {
+                        updateFormField("cnpj", values.formattedValue);
+                      }}
+                      error={!!formErrors.cnpj}
+                      helperText={formErrors.cnpj}
                       fullWidth
                     />
                   </Grid>
@@ -545,11 +817,10 @@ export default function ClientesPage() {
                       inputProps={{ min: 0, step: 0.01 }}
                       value={form.capitalSocial}
                       onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          capitalSocial: e.target.value,
-                        }))
+                        updateFormField("capitalSocial", e.target.value)
                       }
+                      error={!!formErrors.capitalSocial}
+                      helperText={formErrors.capitalSocial}
                       fullWidth
                     />
                   </Grid>

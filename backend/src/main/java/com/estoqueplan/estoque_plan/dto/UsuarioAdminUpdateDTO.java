@@ -16,4 +16,5 @@ public class UsuarioAdminUpdateDTO {
     private String login;
     private String senha;
     private Usuario.Permissao permissao;
+    private Boolean ativo;
 }

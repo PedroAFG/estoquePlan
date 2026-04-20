@@ -40,6 +40,43 @@ public class VendaService {
     @Autowired
     private TituloFinanceiroService tituloFinanceiroService;
 
+    private void validarEstoque(Produto produto, Integer quantidade) {
+        if (produto == null) {
+            throw new RuntimeException("Produto não encontrado.");
+        }
+
+        if (!produto.isAtivo()) {
+            throw new RuntimeException("O produto " + produto.getDescricao() + " está inativo.");
+        }
+
+        if (quantidade == null || quantidade <= 0) {
+            throw new RuntimeException("Quantidade deve ser maior que zero.");
+        }
+
+        if (produto.getQuantidadeDisponivel() == null || produto.getQuantidadeDisponivel() <= 0) {
+            throw new RuntimeException("O produto " + produto.getDescricao() + " está sem estoque.");
+        }
+
+        if (produto.getQuantidadeDisponivel() < quantidade) {
+            throw new RuntimeException(
+                    "Estoque insuficiente para o produto " + produto.getDescricao() +
+                            ". Disponível: " + produto.getQuantidadeDisponivel() +
+                            ", solicitado: " + quantidade
+            );
+        }
+    }
+
+    private void baixarEstoque(Produto produto, Integer quantidade) {
+        produto.setQuantidadeDisponivel(produto.getQuantidadeDisponivel() - quantidade);
+        produtoRepository.save(produto);
+    }
+
+    private void devolverEstoque(Produto produto, Integer quantidade) {
+        int estoqueAtual = produto.getQuantidadeDisponivel() != null ? produto.getQuantidadeDisponivel() : 0;
+        produto.setQuantidadeDisponivel(estoqueAtual + quantidade);
+        produtoRepository.save(produto);
+    }
+
     @Transactional
     public VendaDTO salvarVenda(VendaDTO vendaDTO) {
         validarVenda(vendaDTO);
@@ -76,12 +113,14 @@ public class VendaService {
                 throw new RuntimeException("Preço unitário do item deve ser maior que zero.");
             }
 
-            ItemVenda item = new ItemVenda();
-            item.setVenda(venda);
-
             Produto produto = produtoRepository.findById(itemDTO.getProdutoId())
                     .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
 
+            validarEstoque(produto, itemDTO.getQuantidade());
+            baixarEstoque(produto, itemDTO.getQuantidade());
+
+            ItemVenda item = new ItemVenda();
+            item.setVenda(venda);
             item.setProduto(produto);
             item.setQuantidade(itemDTO.getQuantidade());
             item.setUnidade(itemDTO.getUnidade());
@@ -138,6 +177,15 @@ public class VendaService {
             throw new RuntimeException("Não é possível alterar uma venda cancelada");
         }
 
+        if (vendaDTO.getItens() == null || vendaDTO.getItens().isEmpty()) {
+            throw new RuntimeException("A venda precisa ter pelo menos 1 item");
+        }
+
+        // devolve estoque antigo
+        for (ItemVenda itemAntigo : venda.getItens()) {
+            devolverEstoque(itemAntigo.getProduto(), itemAntigo.getQuantidade());
+        }
+
         if (vendaDTO.getClienteId() != null) {
             venda.setCliente(clienteService.encontrarPorId(vendaDTO.getClienteId())
                     .orElseThrow(() -> new RuntimeException("Cliente não encontrado")));
@@ -158,17 +206,27 @@ public class VendaService {
         List<ItemVenda> novosItens = new ArrayList<>();
         BigDecimal valorTotalItens = BigDecimal.ZERO;
 
-        if (vendaDTO.getItens() == null || vendaDTO.getItens().isEmpty()) {
-            throw new RuntimeException("A venda precisa ter pelo menos 1 item");
-        }
-
         for (ItemVendaDTO itemDTO : vendaDTO.getItens()) {
-            ItemVenda item = new ItemVenda();
-            item.setVenda(venda);
+            if (itemDTO.getProdutoId() == null) {
+                throw new RuntimeException("ProdutoId do item é obrigatório.");
+            }
+
+            if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade() <= 0) {
+                throw new RuntimeException("Quantidade do item deve ser maior que zero.");
+            }
+
+            if (itemDTO.getPrecoUnitario() == null || itemDTO.getPrecoUnitario().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Preço unitário do item deve ser maior que zero.");
+            }
 
             Produto produto = produtoRepository.findById(itemDTO.getProdutoId())
                     .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
 
+            validarEstoque(produto, itemDTO.getQuantidade());
+            baixarEstoque(produto, itemDTO.getQuantidade());
+
+            ItemVenda item = new ItemVenda();
+            item.setVenda(venda);
             item.setProduto(produto);
             item.setQuantidade(itemDTO.getQuantidade());
             item.setUnidade(itemDTO.getUnidade());
@@ -191,7 +249,13 @@ public class VendaService {
         BigDecimal adicional = venda.getAdicional() != null ? venda.getAdicional() : BigDecimal.ZERO;
         BigDecimal frete = venda.getFrete() != null ? venda.getFrete() : BigDecimal.ZERO;
 
-        venda.setValorTotal(valorTotalItens.subtract(desconto).add(adicional).add(frete));
+        BigDecimal valorFinal = valorTotalItens.subtract(desconto).add(adicional).add(frete);
+
+        if (valorFinal.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("O valor final da venda deve ser maior que zero.");
+        }
+
+        venda.setValorTotal(valorFinal);
 
         Venda vendaSalva = vendaRepository.save(venda);
         return converterVendaParaDTO(vendaSalva);
@@ -206,12 +270,18 @@ public class VendaService {
         return vendaRepository.findById(id).map(this::converterVendaParaDTO);
     }
 
+    @Transactional
     public void cancelarVenda(Long id, String motivo) {
         Venda venda = vendaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Venda não encontrada para o ID: " + id));
 
         if (venda.getStatus() == StatusVenda.CANCELADA) {
             return;
+        }
+
+        for (ItemVenda item : venda.getItens()) {
+            Produto produto = item.getProduto();
+            devolverEstoque(produto, item.getQuantidade()); //devolve quantidade vendida por engano
         }
 
         venda.setStatus(StatusVenda.CANCELADA);

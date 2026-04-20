@@ -1,14 +1,9 @@
 package com.estoqueplan.estoque_plan.model;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
@@ -31,6 +26,11 @@ public class Usuario {
     private String login;
 
     private String senha;
+
+    @Column(nullable = false)
+    private boolean ativo = true;
+
+    private LocalDateTime inativadoEm;
 
     @Enumerated(EnumType.STRING)
     private Permissao permissao;

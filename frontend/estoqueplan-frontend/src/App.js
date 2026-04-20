@@ -11,12 +11,8 @@ import CategoriasFinanceirasPage from "./pages/CategoriasFinanceirasPage";
 import FormasPagamentoPage from "./pages/FormasPagamentoPage";
 import ClientesPage from "./pages/ClientesPage"
 import Configuracoes from "./pages/Configuracoes";
-
-// páginas futuras dos cadastros
-// import ClientesPage from "./pages/ClientesPage";
-// import CategoriasPage from "./pages/CategoriasPage";
-// import CategoriasFinanceirasPage from "./pages/CategoriasFinanceirasPage";
-// import FormasPagamentoPage from "./pages/FormasPagamentoPage";
+import Usuarios from "./pages/Usuarios"
+import AdminRoute from "./components/AdminRoute"
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { UserProvider } from "./contexts/UserContext";
@@ -77,7 +73,9 @@ function App() {
             path="/cadastros"
             element={
               <ProtectedRoute>
-                <CadastrosGerais />
+                <AdminRoute>
+                  <CadastrosGerais />
+                </AdminRoute>
               </ProtectedRoute>
             }
           />
@@ -88,7 +86,9 @@ function App() {
             path="/cadastros/categorias"
             element={
               <ProtectedRoute>
-                <CategoriasPage />
+                <AdminRoute>
+                  <CategoriasPage />
+                </AdminRoute>
               </ProtectedRoute>
             }
           />
@@ -97,7 +97,9 @@ function App() {
             path="/cadastros/categorias-financeiras"
             element={
               <ProtectedRoute>
-                <CategoriasFinanceirasPage />
+                <AdminRoute>
+                  <CategoriasFinanceirasPage />
+                </AdminRoute>
               </ProtectedRoute>
             }
           />
@@ -106,7 +108,9 @@ function App() {
             path="/cadastros/formas-pagamento"
             element={
               <ProtectedRoute>
-                <FormasPagamentoPage />
+                <AdminRoute>
+                  <FormasPagamentoPage />
+                </AdminRoute>
               </ProtectedRoute>
             }
           />
@@ -115,7 +119,20 @@ function App() {
             path="/cadastros/clientes"
             element={
               <ProtectedRoute>
-                <ClientesPage />
+                <AdminRoute>
+                  <ClientesPage />
+                </AdminRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cadastros/usuarios"
+            element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <Usuarios />
+                </AdminRoute>
               </ProtectedRoute>
             }
           />

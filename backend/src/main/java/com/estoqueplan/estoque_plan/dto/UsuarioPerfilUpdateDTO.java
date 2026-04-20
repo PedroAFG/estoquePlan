@@ -13,4 +13,5 @@ public class UsuarioPerfilUpdateDTO {
     private String cargo;
     private String login;
     private String senha;
+    private boolean ativo;
 }

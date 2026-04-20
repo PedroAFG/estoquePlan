@@ -5,6 +5,7 @@ import com.estoqueplan.estoque_plan.model.Usuario;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 public class UsuarioDTO {
@@ -16,6 +17,8 @@ public class UsuarioDTO {
     private LocalDate dataNascimento;
     private String login;
     private Usuario.Permissao permissao;
+    private boolean ativo;
+    private LocalDateTime inativadoEm;
     
 }
 

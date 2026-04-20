@@ -22,6 +22,7 @@ import {
   DialogActions,
   TextField,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -42,7 +43,18 @@ import apiService from "../services/api";
 const emptyForm = {
   descricao: "",
   unidade: "un",
-  quantidadeDisponivel: 0,
+  quantidadeDisponivel: "",
+  categoriaId: "",
+  custo: "",
+  precoVarejo: "",
+  ncm: "",
+  idSebrae: "",
+};
+
+const emptyFormErrors = {
+  descricao: "",
+  unidade: "",
+  quantidadeDisponivel: "",
   categoriaId: "",
   custo: "",
   precoVarejo: "",
@@ -78,11 +90,15 @@ export default function Produtos() {
   const [categorias, setCategorias] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  const [pageError, setPageError] = useState("");
+  const [pageSuccess, setPageSuccess] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState(emptyFormErrors);
 
   const [incluirInativos, setIncluirInativos] = useState(false);
   const [filters, setFilters] = useState(emptyFilters);
@@ -96,7 +112,7 @@ export default function Produtos() {
   const loadData = async () => {
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
 
       const [produtosData, categoriasData] = await Promise.all([
         apiService.getProdutos({ incluirInativos }),
@@ -106,7 +122,7 @@ export default function Produtos() {
       setProdutos(produtosData || []);
       setCategorias(categoriasData || []);
     } catch (e) {
-      setError(e?.message || "Erro ao carregar dados");
+      setPageError(e?.message || "Erro ao carregar dados");
     } finally {
       setLoading(false);
     }
@@ -117,15 +133,94 @@ export default function Produtos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incluirInativos]);
 
+  const validateForm = () => {
+    const novosErros = {
+      descricao: "",
+      unidade: "",
+      quantidadeDisponivel: "",
+      categoriaId: "",
+      custo: "",
+      precoVarejo: "",
+      ncm: "",
+      idSebrae: "",
+    };
+
+    const descricao = String(form.descricao || "").trim();
+    const unidade = String(form.unidade || "").trim();
+    const categoriaId = Number(form.categoriaId);
+
+    const quantidadeRaw = String(form.quantidadeDisponivel ?? "").trim();
+    const custoRaw = String(form.custo ?? "").trim();
+    const precoRaw = String(form.precoVarejo ?? "").trim();
+
+    const quantidadeDisponivel = Number(quantidadeRaw);
+    const custo = Number(custoRaw);
+    const precoVarejo = Number(precoRaw);
+
+    if (!descricao) {
+      novosErros.descricao = "Informe a descrição.";
+    }
+
+    if (!unidade) {
+      novosErros.unidade = "Informe a unidade.";
+    }
+
+    if (!categoriaId) {
+      novosErros.categoriaId = "Selecione uma categoria.";
+    }
+
+    if (quantidadeRaw === "") {
+      novosErros.quantidadeDisponivel = "Informe a quantidade.";
+    } else if (Number.isNaN(quantidadeDisponivel) || quantidadeDisponivel < 0) {
+      novosErros.quantidadeDisponivel =
+        "Informe uma quantidade válida maior ou igual a zero.";
+    }
+
+    if (custoRaw === "") {
+      novosErros.custo = "Informe o custo.";
+    } else if (Number.isNaN(custo) || custo < 0) {
+      novosErros.custo = "Informe um custo válido maior ou igual a zero.";
+    }
+
+    if (precoRaw === "") {
+      novosErros.precoVarejo = "Informe o preço.";
+    } else if (Number.isNaN(precoVarejo) || precoVarejo < 0) {
+      novosErros.precoVarejo = "Informe um preço válido maior ou igual a zero.";
+    }
+
+    setFormErrors(novosErros);
+
+    return !Object.values(novosErros).some(Boolean);
+  };
+
+  const updateFormField = (campo, valor) => {
+    setForm((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
+
+    setFormErrors((prev) => ({
+      ...prev,
+      [campo]: "",
+    }));
+
+    setModalError("");
+    setPageSuccess("");
+  };
+
   const handleCloseModal = () => {
     setOpen(false);
     setEditing(null);
     setForm(emptyForm);
+    setFormErrors(emptyFormErrors);
+    setModalError("");
   };
 
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
+    setFormErrors(emptyFormErrors);
+    setModalError("");
     setOpen(true);
   };
 
@@ -133,7 +228,7 @@ export default function Produtos() {
     const ativo = p.ativo ?? true;
 
     if (!ativo) {
-      setError("Produto inativo não pode ser editado.");
+      setPageError("Produto inativo não pode ser editado.");
       return;
     }
 
@@ -148,31 +243,28 @@ export default function Produtos() {
       ncm: p.ncm || "",
       idSebrae: p.idSebrae || "",
     });
+    setFormErrors(emptyFormErrors);
+    setModalError("");
     setOpen(true);
   };
 
   const handleSave = async () => {
     try {
-      setError("");
+      setModalError("");
+
+      const isValid = validateForm();
+      if (!isValid) return;
 
       const payload = {
         descricao: String(form.descricao || "").trim(),
         unidade: String(form.unidade || "un").trim(),
-        quantidadeDisponivel: Number(form.quantidadeDisponivel || 0),
+        quantidadeDisponivel: Number(form.quantidadeDisponivel),
         categoriaId: Number(form.categoriaId),
-        custo: Number(form.custo || 0),
-        precoVarejo: Number(form.precoVarejo || 0),
+        custo: Number(form.custo),
+        precoVarejo: Number(form.precoVarejo),
         ncm: String(form.ncm || "").trim(),
         idSebrae: String(form.idSebrae || "").trim(),
       };
-
-      if (!payload.descricao) throw new Error("Descrição é obrigatória");
-      if (!payload.categoriaId) throw new Error("Selecione uma categoria");
-      if (Number.isNaN(payload.custo)) throw new Error("Custo inválido");
-      if (Number.isNaN(payload.precoVarejo)) throw new Error("Preço inválido");
-      if (payload.quantidadeDisponivel < 0) {
-        throw new Error("Quantidade não pode ser negativa");
-      }
 
       setLoading(true);
 
@@ -181,14 +273,16 @@ export default function Produtos() {
         setProdutos((prev) =>
           prev.map((p) => (p.id === editing.id ? updated : p))
         );
+        setPageSuccess("Produto atualizado com sucesso.");
       } else {
         const created = await apiService.createProduto(payload);
         setProdutos((prev) => [created, ...prev]);
+        setPageSuccess("Produto criado com sucesso.");
       }
 
       handleCloseModal();
     } catch (e) {
-      setError(e?.message || "Erro ao salvar produto");
+      setModalError(e?.message || "Erro ao salvar produto");
     } finally {
       setLoading(false);
     }
@@ -201,13 +295,15 @@ export default function Produtos() {
     if (!ok) return;
 
     try {
-      setError("");
+      setPageError("");
+      setPageSuccess("");
       setLoading(true);
 
       await apiService.inativarProduto(p.id);
       await loadData();
+      setPageSuccess("Produto inativado com sucesso.");
     } catch (e) {
-      setError(e?.message || "Erro ao inativar produto");
+      setPageError(e?.message || "Erro ao inativar produto");
     } finally {
       setLoading(false);
     }
@@ -438,9 +534,19 @@ export default function Produtos() {
           </Paper>
         </Grid>
 
-        {error && (
+        {pageSuccess && (
           <Grid item xs={12} sx={pageContentSx}>
-            <Alert severity="error">{error}</Alert>
+            <Alert severity="success" onClose={() => setPageSuccess("")}>
+              {pageSuccess}
+            </Alert>
+          </Grid>
+        )}
+
+        {pageError && (
+          <Grid item xs={12} sx={pageContentSx}>
+            <Alert severity="error" onClose={() => setPageError("")}>
+              {pageError}
+            </Alert>
           </Grid>
         )}
 
@@ -562,21 +668,27 @@ export default function Produtos() {
 
         <DialogContent dividers>
           <Stack spacing={2} mt={1}>
+            {modalError && (
+              <Alert severity="error" onClose={() => setModalError("")}>
+                {modalError}
+              </Alert>
+            )}
+
             <TextField
               label="Descrição"
               value={form.descricao}
-              onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+              onChange={(e) => updateFormField("descricao", e.target.value)}
+              error={!!formErrors.descricao}
+              helperText={formErrors.descricao}
               fullWidth
             />
 
-            <FormControl fullWidth>
+            <FormControl fullWidth error={!!formErrors.categoriaId}>
               <InputLabel>Categoria</InputLabel>
               <Select
                 label="Categoria"
                 value={form.categoriaId}
-                onChange={(e) =>
-                  setForm({ ...form, categoriaId: e.target.value })
-                }
+                onChange={(e) => updateFormField("categoriaId", e.target.value)}
               >
                 {categorias.map((c) => (
                   <MenuItem key={c.id} value={c.id}>
@@ -584,13 +696,16 @@ export default function Produtos() {
                   </MenuItem>
                 ))}
               </Select>
+              <FormHelperText>{formErrors.categoriaId}</FormHelperText>
             </FormControl>
 
             <Stack direction="row" spacing={2}>
               <TextField
                 label="Unidade"
                 value={form.unidade}
-                onChange={(e) => setForm({ ...form, unidade: e.target.value })}
+                onChange={(e) => updateFormField("unidade", e.target.value)}
+                error={!!formErrors.unidade}
+                helperText={formErrors.unidade}
                 fullWidth
               />
               <TextField
@@ -599,8 +714,10 @@ export default function Produtos() {
                 value={form.quantidadeDisponivel}
                 fullWidth
                 onChange={(e) =>
-                  setForm({ ...form, quantidadeDisponivel: e.target.value })
+                  updateFormField("quantidadeDisponivel", e.target.value)
                 }
+                error={!!formErrors.quantidadeDisponivel}
+                helperText={formErrors.quantidadeDisponivel}
                 inputProps={{ min: 0 }}
               />
             </Stack>
@@ -611,7 +728,9 @@ export default function Produtos() {
                 type="number"
                 fullWidth
                 value={form.custo}
-                onChange={(e) => setForm({ ...form, custo: e.target.value })}
+                onChange={(e) => updateFormField("custo", e.target.value)}
+                error={!!formErrors.custo}
+                helperText={formErrors.custo}
                 inputProps={{ min: 0, step: 0.01 }}
               />
               <TextField
@@ -620,8 +739,10 @@ export default function Produtos() {
                 fullWidth
                 value={form.precoVarejo}
                 onChange={(e) =>
-                  setForm({ ...form, precoVarejo: e.target.value })
+                  updateFormField("precoVarejo", e.target.value)
                 }
+                error={!!formErrors.precoVarejo}
+                helperText={formErrors.precoVarejo}
                 inputProps={{ min: 0, step: 0.01 }}
               />
             </Stack>
@@ -629,14 +750,18 @@ export default function Produtos() {
             <TextField
               label="NCM"
               value={form.ncm}
-              onChange={(e) => setForm({ ...form, ncm: e.target.value })}
+              onChange={(e) => updateFormField("ncm", e.target.value)}
+              error={!!formErrors.ncm}
+              helperText={formErrors.ncm}
               fullWidth
             />
 
             <TextField
               label="ID Sebrae"
               value={form.idSebrae}
-              onChange={(e) => setForm({ ...form, idSebrae: e.target.value })}
+              onChange={(e) => updateFormField("idSebrae", e.target.value)}
+              error={!!formErrors.idSebrae}
+              helperText={formErrors.idSebrae}
               fullWidth
             />
           </Stack>

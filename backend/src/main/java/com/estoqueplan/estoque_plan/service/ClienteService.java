@@ -1,5 +1,7 @@
 package com.estoqueplan.estoque_plan.service;
 
+import com.estoqueplan.estoque_plan.exception.RecursoNaoEncontradoException;
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.model.Cliente;
 import com.estoqueplan.estoque_plan.model.PessoaFisica;
 import com.estoqueplan.estoque_plan.model.PessoaJuridica;
@@ -102,12 +104,12 @@ public class ClienteService {
     public void deletar(Long id) {
 
         if (!clienteRepository.existsById(id)) {
-            throw new RuntimeException("Cliente não encontrado!");
+            throw new RecursoNaoEncontradoException("Cliente não encontrado!");
         }
 
         boolean temVendaAssociada = vendaRepository.existsByClienteId(id);
         if (temVendaAssociada) {
-            throw new RuntimeException("Não é possível excluir: existem vendas associadas a este cliente!");
+            throw new RegraNegocioException("Não é possível excluir: existem vendas associadas a este cliente!");
         }
 
         // Tenta deletar como PessoaFisica, se não achar, tenta como PessoaJuridica

@@ -26,6 +26,9 @@ import {
   FormControlLabel,
   Switch,
   Tooltip,
+  FormHelperText,
+  Divider,
+  Box,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -46,10 +49,17 @@ const emptyForm = {
   nome: "",
 };
 
+const emptyFormErrors = {
+  nome: "",
+};
+
 export default function CategoriasPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+
+  const [pageError, setPageError] = useState("");
+  const [pageSuccess, setPageSuccess] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const [categorias, setCategorias] = useState([]);
   const [mostrarInativos, setMostrarInativos] = useState(false);
@@ -59,19 +69,26 @@ export default function CategoriasPage() {
   const [modoEdicao, setModoEdicao] = useState(false);
   const [categoriaEdicaoId, setCategoriaEdicaoId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [formErrors, setFormErrors] = useState(emptyFormErrors);
+
+  const total = categorias.length;
+
+  const pageContentSx = {
+    width: "100%",
+  };
 
   const carregarCategorias = async (incluirInativos = mostrarInativos) => {
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
 
       const data = await apiService.getCategorias({
-        incluirInativos: incluirInativos,
+        incluirInativos,
       });
 
       setCategorias(data || []);
     } catch (e) {
-      setError(e?.message || "Erro ao carregar categorias");
+      setPageError(e?.message || "Erro ao carregar categorias");
     } finally {
       setLoading(false);
     }
@@ -93,21 +110,62 @@ export default function CategoriasPage() {
       .sort((a, b) => Number(b.id) - Number(a.id));
   }, [categorias, busca]);
 
+  const validateForm = () => {
+    const novosErros = {
+      nome: "",
+    };
+
+    const nome = String(form.nome || "").trim();
+
+    if (!nome) {
+      novosErros.nome = "Informe o nome da categoria.";
+    }
+
+    setFormErrors(novosErros);
+    return !Object.values(novosErros).some(Boolean);
+  };
+
+  const updateFormField = (campo, valor) => {
+    setForm((prev) => ({
+      ...prev,
+      [campo]: valor,
+    }));
+
+    setFormErrors((prev) => ({
+      ...prev,
+      [campo]: "",
+    }));
+
+    setModalError("");
+    setPageSuccess("");
+  };
+
   const abrirCriacao = () => {
-    setError("");
+    setPageError("");
+    setModalError("");
     setModoEdicao(false);
     setCategoriaEdicaoId(null);
     setForm(emptyForm);
+    setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
 
   const abrirEdicao = (categoria) => {
-    setError("");
+    const ativa = categoria?.ativo !== false;
+
+    if (!ativa) {
+      setPageError("Categoria inativa não pode ser editada.");
+      return;
+    }
+
+    setPageError("");
+    setModalError("");
     setModoEdicao(true);
     setCategoriaEdicaoId(categoria.id);
     setForm({
       nome: categoria.nome || "",
     });
+    setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
 
@@ -117,31 +175,37 @@ export default function CategoriasPage() {
     setModoEdicao(false);
     setCategoriaEdicaoId(null);
     setForm(emptyForm);
+    setFormErrors(emptyFormErrors);
+    setModalError("");
   };
 
   const salvarCategoria = async () => {
     try {
       setSaving(true);
-      setError("");
+      setModalError("");
+
+      const isValid = validateForm();
+      if (!isValid) {
+        setModalError("Revise os campos obrigatórios da categoria.");
+        return;
+      }
 
       const payload = {
         nome: String(form.nome || "").trim(),
       };
 
-      if (!payload.nome) {
-        throw new Error("Informe o nome da categoria");
-      }
-
       if (modoEdicao && categoriaEdicaoId) {
         await apiService.updateCategoria(categoriaEdicaoId, payload);
+        setPageSuccess("Categoria atualizada com sucesso.");
       } else {
         await apiService.createCategoria(payload);
+        setPageSuccess("Categoria criada com sucesso.");
       }
 
       fecharModal();
       await carregarCategorias(mostrarInativos);
     } catch (e) {
-      setError(e?.message || "Erro ao salvar categoria");
+      setModalError(e?.message || "Erro ao salvar categoria");
     } finally {
       setSaving(false);
     }
@@ -150,17 +214,20 @@ export default function CategoriasPage() {
   const alternarStatus = async (categoria) => {
     try {
       setLoading(true);
-      setError("");
+      setPageError("");
+      setPageSuccess("");
 
       if (categoria?.ativo === false) {
         await apiService.ativarCategoria(categoria.id);
+        setPageSuccess("Categoria ativada com sucesso.");
       } else {
         await apiService.inativarCategoria(categoria.id);
+        setPageSuccess("Categoria inativada com sucesso.");
       }
 
       await carregarCategorias(mostrarInativos);
     } catch (e) {
-      setError(e?.message || "Erro ao alterar status da categoria");
+      setPageError(e?.message || "Erro ao alterar status da categoria");
       setLoading(false);
     }
   };
@@ -177,32 +244,47 @@ export default function CategoriasPage() {
   return (
     <AppLayout title="Categorias">
       <Grid container spacing={2}>
-        {/* Header */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={4}>
-                <Stack spacing={0.5}>
-                  <Typography variant="h6">Categorias</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Gerencie as categorias dos produtos cadastrados no sistema.
-                  </Typography>
-                </Stack>
-              </Grid>
+        <Grid item xs={12} sx={pageContentSx}>
+          <Paper
+            sx={{
+              p: 2.5,
+              borderRadius: 3,
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
+            <Stack spacing={2}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} lg={4}>
+                  <Stack spacing={0.5}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Categorias cadastradas
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {categoriasFiltradas.length} de {total} item(ns)
+                    </Typography>
+                  </Stack>
+                </Grid>
 
-              <Grid item xs={12} md={8}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={5}>
-                    <TextField
-                      label="Buscar por nome"
-                      value={busca}
-                      onChange={(e) => setBusca(e.target.value)}
-                      fullWidth
-                    />
-                  </Grid>
+                <Grid item xs={12} lg={8}>
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    justifyContent={{ xs: "flex-start", lg: "flex-end" }}
+                    alignItems="center"
+                    flexWrap="wrap"
+                    useFlexGap
+                  >
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={abrirCriacao}
+                    >
+                      Nova Categoria
+                    </Button>
 
-                  <Grid item xs={12} md={4}>
                     <FormControlLabel
+                      sx={{ ml: { xs: 0, lg: 1 } }}
                       control={
                         <Switch
                           checked={mostrarInativos}
@@ -211,89 +293,132 @@ export default function CategoriasPage() {
                       }
                       label="Mostrar inativos"
                     />
-                  </Grid>
-
-                  <Grid item xs={12} md={3}>
-                    <Button
-                      variant="contained"
-                      startIcon={<AddIcon />}
-                      onClick={abrirCriacao}
-                      fullWidth
-                      sx={{ height: "56px" }}
-                    >
-                      Nova Categoria
-                    </Button>
-                  </Grid>
+                  </Stack>
                 </Grid>
               </Grid>
-            </Grid>
+
+              <Divider />
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "1fr auto",
+                    lg: "minmax(260px, 2fr) auto",
+                  },
+                  gap: 2,
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
+                <TextField
+                  label="Buscar por nome"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  fullWidth
+                />
+
+                <Button
+                  variant="text"
+                  onClick={() => setBusca("")}
+                  sx={{
+                    height: 56,
+                    minWidth: 100,
+                    whiteSpace: "nowrap",
+                    justifySelf: { xs: "start", lg: "center" },
+                  }}
+                >
+                  Limpar
+                </Button>
+              </Box>
+            </Stack>
           </Paper>
         </Grid>
 
-        {error && (
-          <Grid item xs={12}>
-            <Alert severity="error">{error}</Alert>
+        {pageSuccess && (
+          <Grid item xs={12} sx={pageContentSx}>
+            <Alert severity="success" onClose={() => setPageSuccess("")}>
+              {pageSuccess}
+            </Alert>
           </Grid>
         )}
 
-        {/* Tabela */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2, minHeight: "65vh" }}>
+        {pageError && (
+          <Grid item xs={12} sx={pageContentSx}>
+            <Alert severity="error" onClose={() => setPageError("")}>
+              {pageError}
+            </Alert>
+          </Grid>
+        )}
+
+        <Grid item xs={12} sx={pageContentSx}>
+          <Paper
+            sx={{
+              p: 2,
+              minHeight: "65vh",
+              borderRadius: 3,
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
             {loading ? (
               <Stack alignItems="center" py={6}>
                 <CircularProgress />
               </Stack>
             ) : (
-              <TableContainer sx={{ maxHeight: "65vh" }}>
-                <Table stickyHeader>
+              <TableContainer sx={{ maxHeight: "65vh", width: "100%" }}>
+                <Table stickyHeader sx={{ width: "100%" }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell><b>ID</b></TableCell>
+                      <TableCell sx={{ width: 80 }}><b>ID</b></TableCell>
                       <TableCell><b>Nome</b></TableCell>
-                      <TableCell align="center"><b>Status</b></TableCell>
-                      <TableCell><b>Inativado em</b></TableCell>
-                      <TableCell align="center"><b>Ações</b></TableCell>
+                      <TableCell align="center" sx={{ width: 120 }}><b>Status</b></TableCell>
+                      <TableCell align="center" sx={{ width: 180 }}><b>Inativado em</b></TableCell>
+                      <TableCell align="center" sx={{ width: 140 }}><b>Ações</b></TableCell>
                     </TableRow>
                   </TableHead>
 
                   <TableBody>
-                    {categoriasFiltradas.map((categoria) => (
-                      <TableRow key={categoria.id} hover>
-                        <TableCell>{categoria.id}</TableCell>
-                        <TableCell>{categoria.nome}</TableCell>
-                        <TableCell align="center">
-                          {chipStatus(categoria.ativo)}
-                        </TableCell>
-                        <TableCell>{dateBR(categoria.inativadoEm)}</TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Editar categoria">
-                            <IconButton onClick={() => abrirEdicao(categoria)}>
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
+                    {categoriasFiltradas.map((categoria) => {
+                      const ativa = categoria?.ativo !== false;
 
-                          {categoria?.ativo === false ? (
-                            <Tooltip title="Ativar categoria">
-                              <IconButton
-                                color="success"
-                                onClick={() => alternarStatus(categoria)}
-                              >
-                                <ToggleOnIcon />
-                              </IconButton>
+                      return (
+                        <TableRow key={categoria.id} hover sx={{ opacity: ativa ? 1 : 0.55 }}>
+                          <TableCell>{categoria.id}</TableCell>
+                          <TableCell>{categoria.nome}</TableCell>
+                          <TableCell align="center">
+                            {chipStatus(categoria.ativo)}
+                          </TableCell>
+                          <TableCell align="center">
+                            {mostrarInativos ? dateBR(categoria.inativadoEm) : "-"}
+                          </TableCell>
+                          <TableCell align="center">
+                            <Tooltip title={ativa ? "Editar" : "Categoria inativa"}>
+                              <span>
+                                <IconButton onClick={() => abrirEdicao(categoria)} disabled={!ativa}>
+                                  <EditIcon />
+                                </IconButton>
+                              </span>
                             </Tooltip>
-                          ) : (
-                            <Tooltip title="Inativar categoria">
-                              <IconButton
-                                color="warning"
-                                onClick={() => alternarStatus(categoria)}
-                              >
-                                <ToggleOffIcon />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+
+                            {categoria?.ativo === false ? (
+                              <Tooltip title="Ativar categoria">
+                                <IconButton color="success" onClick={() => alternarStatus(categoria)}>
+                                  <ToggleOnIcon />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="Inativar categoria">
+                                <IconButton color="warning" onClick={() => alternarStatus(categoria)}>
+                                  <ToggleOffIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
 
                     {categoriasFiltradas.length === 0 && (
                       <TableRow>
@@ -312,18 +437,31 @@ export default function CategoriasPage() {
         </Grid>
       </Grid>
 
-      {/* Modal criar/editar */}
-      <Dialog open={openModal} onClose={fecharModal} maxWidth="sm" fullWidth>
+      <Dialog
+        open={openModal}
+        onClose={fecharModal}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
         <DialogTitle>
           {modoEdicao ? "Editar Categoria" : "Nova Categoria"}
         </DialogTitle>
 
         <DialogContent dividers>
           <Stack spacing={2} mt={1}>
+            {modalError && (
+              <Alert severity="error" onClose={() => setModalError("")}>
+                {modalError}
+              </Alert>
+            )}
+
             <TextField
               label="Nome da categoria"
               value={form.nome}
-              onChange={(e) => setForm((prev) => ({ ...prev, nome: e.target.value }))}
+              onChange={(e) => updateFormField("nome", e.target.value)}
+              error={!!formErrors.nome}
+              helperText={formErrors.nome}
               fullWidth
               autoFocus
             />

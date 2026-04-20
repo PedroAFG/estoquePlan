@@ -77,6 +77,20 @@ public class UsuarioController {
         return ResponseEntity.ok(toUsuarioDTO(usuarioAtualizado));
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PatchMapping("/{id}/ativar")
+    public ResponseEntity<Void> ativarUsuario(@PathVariable Long id) {
+        usuarioService.ativarUsuarioPorId(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
+    @PatchMapping("/{id}/inativar")
+    public ResponseEntity<Void> inativarUsuario(@PathVariable Long id) {
+        usuarioService.inativarUsuarioPorId(id);
+        return ResponseEntity.ok().build();
+    }
+
     private UsuarioDTO toUsuarioDTO(Usuario usuario) {
         UsuarioDTO dto = new UsuarioDTO();
         dto.setId(usuario.getId());
@@ -86,6 +100,8 @@ public class UsuarioController {
         dto.setCargo(usuario.getCargo());
         dto.setLogin(usuario.getLogin());
         dto.setPermissao(usuario.getPermissao());
+        dto.setAtivo(usuario.isAtivo());
+        dto.setInativadoEm(usuario.getInativadoEm());
         return dto;
     }
 }
