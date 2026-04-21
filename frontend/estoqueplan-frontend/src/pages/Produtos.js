@@ -44,6 +44,7 @@ const emptyForm = {
   descricao: "",
   unidade: "un",
   quantidadeDisponivel: "",
+  estoqueMinimo: "",
   categoriaId: "",
   custo: "",
   precoVarejo: "",
@@ -55,6 +56,7 @@ const emptyFormErrors = {
   descricao: "",
   unidade: "",
   quantidadeDisponivel: "",
+  estoqueMinimo: "",
   categoriaId: "",
   custo: "",
   precoVarejo: "",
@@ -83,6 +85,33 @@ function dateTimeBR(iso) {
   } catch {
     return "-";
   }
+}
+
+function getSituacaoEstoque(produto) {
+  const quantidade = Number(produto?.quantidadeDisponivel ?? 0);
+  const estoqueMinimo = Number(produto?.estoqueMinimo ?? 0);
+
+  if (quantidade <= 0) {
+    return {
+      label: "ZERADO",
+      color: "error",
+      variant: "filled",
+    };
+  }
+
+  if (quantidade <= estoqueMinimo) {
+    return {
+      label: "BAIXO",
+      color: "warning",
+      variant: "filled",
+    };
+  }
+
+  return {
+    label: "OK",
+    color: "success",
+    variant: "outlined",
+  };
 }
 
 export default function Produtos() {
@@ -138,6 +167,7 @@ export default function Produtos() {
       descricao: "",
       unidade: "",
       quantidadeDisponivel: "",
+      estoqueMinimo: "",
       categoriaId: "",
       custo: "",
       precoVarejo: "",
@@ -150,10 +180,12 @@ export default function Produtos() {
     const categoriaId = Number(form.categoriaId);
 
     const quantidadeRaw = String(form.quantidadeDisponivel ?? "").trim();
+    const estoqueMinimoRaw = String(form.estoqueMinimo ?? "").trim();
     const custoRaw = String(form.custo ?? "").trim();
     const precoRaw = String(form.precoVarejo ?? "").trim();
 
     const quantidadeDisponivel = Number(quantidadeRaw);
+    const estoqueMinimo = Number(estoqueMinimoRaw);
     const custo = Number(custoRaw);
     const precoVarejo = Number(precoRaw);
 
@@ -174,6 +206,13 @@ export default function Produtos() {
     } else if (Number.isNaN(quantidadeDisponivel) || quantidadeDisponivel < 0) {
       novosErros.quantidadeDisponivel =
         "Informe uma quantidade válida maior ou igual a zero.";
+    }
+
+    if (estoqueMinimoRaw === "") {
+      novosErros.estoqueMinimo = "Informe o estoque mínimo.";
+    } else if (Number.isNaN(estoqueMinimo) || estoqueMinimo < 0) {
+      novosErros.estoqueMinimo =
+        "Informe um estoque mínimo válido maior ou igual a zero.";
     }
 
     if (custoRaw === "") {
@@ -237,6 +276,7 @@ export default function Produtos() {
       descricao: p.descricao || "",
       unidade: p.unidade || "un",
       quantidadeDisponivel: p.quantidadeDisponivel ?? 0,
+      estoqueMinimo: p.estoqueMinimo ?? 0,
       categoriaId: p.categoria?.id || "",
       custo: p.custo ?? "",
       precoVarejo: p.precoVarejo ?? "",
@@ -259,6 +299,7 @@ export default function Produtos() {
         descricao: String(form.descricao || "").trim(),
         unidade: String(form.unidade || "un").trim(),
         quantidadeDisponivel: Number(form.quantidadeDisponivel),
+        estoqueMinimo: Number(form.estoqueMinimo),
         categoriaId: Number(form.categoriaId),
         custo: Number(form.custo),
         precoVarejo: Number(form.precoVarejo),
@@ -318,6 +359,19 @@ export default function Produtos() {
         label={ativo ? "ATIVO" : "INATIVO"}
         color={ativo ? "success" : "default"}
         variant={ativo ? "filled" : "outlined"}
+      />
+    );
+  };
+
+  const estoqueChip = (p) => {
+    const situacao = getSituacaoEstoque(p);
+
+    return (
+      <Chip
+        size="small"
+        label={situacao.label}
+        color={situacao.color}
+        variant={situacao.variant}
       />
     );
   };
@@ -578,6 +632,8 @@ export default function Produtos() {
                       <TableCell><b>Categoria</b></TableCell>
                       <TableCell><b>Un</b></TableCell>
                       <TableCell align="right"><b>Qtde</b></TableCell>
+                      <TableCell align="right"><b>Est. Mínimo</b></TableCell>
+                      <TableCell align="center"><b>Sit. Estoque</b></TableCell>
                       <TableCell align="right"><b>Custo</b></TableCell>
                       <TableCell align="right"><b>Preço</b></TableCell>
                       <TableCell align="center" sx={{ width: 110 }}>
@@ -608,6 +664,10 @@ export default function Produtos() {
                           <TableCell align="right">
                             {p.quantidadeDisponivel ?? 0}
                           </TableCell>
+                          <TableCell align="right">
+                            {p.estoqueMinimo ?? 0}
+                          </TableCell>
+                          <TableCell align="center">{estoqueChip(p)}</TableCell>
                           <TableCell align="right">{money(p.custo)}</TableCell>
                           <TableCell align="right">{money(p.precoVarejo)}</TableCell>
                           <TableCell align="center">{statusChip(p)}</TableCell>
@@ -644,7 +704,7 @@ export default function Produtos() {
 
                     {produtosFiltrados.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={9}>
+                        <TableCell colSpan={11}>
                           <Typography
                             align="center"
                             color="text.secondary"
@@ -663,7 +723,7 @@ export default function Produtos() {
         </Grid>
       </Grid>
 
-      <Dialog open={open} onClose={handleCloseModal} maxWidth="sm" fullWidth>
+      <Dialog open={open} onClose={handleCloseModal} maxWidth="md" fullWidth>
         <DialogTitle>{editing ? "Editar Produto" : "Novo Produto"}</DialogTitle>
 
         <DialogContent dividers>
@@ -699,7 +759,7 @@ export default function Produtos() {
               <FormHelperText>{formErrors.categoriaId}</FormHelperText>
             </FormControl>
 
-            <Stack direction="row" spacing={2}>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
               <TextField
                 label="Unidade"
                 value={form.unidade}
@@ -708,6 +768,7 @@ export default function Produtos() {
                 helperText={formErrors.unidade}
                 fullWidth
               />
+
               <TextField
                 label="Quantidade"
                 type="number"
@@ -720,9 +781,22 @@ export default function Produtos() {
                 helperText={formErrors.quantidadeDisponivel}
                 inputProps={{ min: 0 }}
               />
+
+              <TextField
+                label="Estoque mínimo"
+                type="number"
+                value={form.estoqueMinimo}
+                fullWidth
+                onChange={(e) =>
+                  updateFormField("estoqueMinimo", e.target.value)
+                }
+                error={!!formErrors.estoqueMinimo}
+                helperText={formErrors.estoqueMinimo}
+                inputProps={{ min: 0 }}
+              />
             </Stack>
 
-            <Stack direction="row" spacing={2}>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
               <TextField
                 label="Custo"
                 type="number"

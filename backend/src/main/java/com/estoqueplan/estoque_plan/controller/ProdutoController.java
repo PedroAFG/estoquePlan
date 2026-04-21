@@ -3,6 +3,7 @@ package com.estoqueplan.estoque_plan.controller;
 import com.estoqueplan.estoque_plan.dto.ProdutoDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -47,6 +48,7 @@ public class ProdutoController {
     }
 
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/ativar")
     public ResponseEntity<Void> ativarProduto(@PathVariable Long id) {
         produtoService.ativarProdutoPorId(id);
@@ -54,6 +56,7 @@ public class ProdutoController {
     }
 
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/inativar")
     public ResponseEntity<Void> inativarProduto(@PathVariable Long id) {
         produtoService.inativarProdutoPorId(id);

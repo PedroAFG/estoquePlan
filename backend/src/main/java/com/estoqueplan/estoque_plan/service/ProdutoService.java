@@ -37,6 +37,7 @@ public class ProdutoService {
         produto.setPrecoVarejo(dto.getPrecoVarejo());
         produto.setNcm(dto.getNcm());
         produto.setIdSebrae(dto.getIdSebrae());
+        produto.setEstoqueMinimo(dto.getEstoqueMinimo());
 
         //Busca e associa a categoria pelo ID recebido no DTO
         if (dto.getCategoriaId() != null) {
@@ -72,6 +73,7 @@ public class ProdutoService {
         if (dto.getPrecoVarejo() != null) produto.setPrecoVarejo(dto.getPrecoVarejo());
         if (dto.getNcm() != null) produto.setNcm(dto.getNcm());
         if (dto.getIdSebrae() != null) produto.setIdSebrae(dto.getIdSebrae());
+        if (dto.getEstoqueMinimo() != null) produto.setEstoqueMinimo(dto.getEstoqueMinimo());
 
         // Categoria: se vier categoriaId, troca. Se vier null, decide sua regra:
         // - se quiser permitir "remover categoria", mantém esse if com else

@@ -14,6 +14,7 @@ public class ProdutoDTO {
     private BigDecimal precoVarejo;
     private String ncm;
     private String idSebrae;
+    private Integer estoqueMinimo;
     // getters e setters (ou @Data do Lombok)
 }
 

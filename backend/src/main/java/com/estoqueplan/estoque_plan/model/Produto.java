@@ -44,4 +44,7 @@ public class Produto {
 
     private LocalDateTime inativadoEm;
 
+    @Column(name = "estoque_minimo", nullable = false)
+    private Integer estoqueMinimo = 0;
+
 }

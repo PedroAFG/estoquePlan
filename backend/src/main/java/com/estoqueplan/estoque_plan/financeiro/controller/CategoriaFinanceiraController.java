@@ -4,6 +4,7 @@ import com.estoqueplan.estoque_plan.financeiro.model.CategoriaFinanceira;
 import com.estoqueplan.estoque_plan.financeiro.service.CategoriaFinanceiraService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,12 +34,14 @@ public class CategoriaFinanceiraController {
         return ResponseEntity.ok(categoriaFinanceiraAtualizada);
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/inativar")
     public ResponseEntity<Void> inativarCategoriaFinanceira(@PathVariable Long id) {
         categoriaFinanceiraService.inativarCategoriaFinanceira(id);
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/ativar")
     public ResponseEntity<Void> ativarCategoriaFinanceira(@PathVariable Long id) {
         categoriaFinanceiraService.ativarCategoriaFinanceiraPorId(id);

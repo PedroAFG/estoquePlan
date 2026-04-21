@@ -4,6 +4,7 @@ import com.estoqueplan.estoque_plan.model.Categoria;
 import com.estoqueplan.estoque_plan.service.CategoriaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,12 +33,14 @@ public class CategoriaController {
         return ResponseEntity.ok(categoriaAtualizada);
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/inativar")
     public ResponseEntity<Void> inativarCategoria(@PathVariable Long id) {
         categoriaService.inativarCategoriaPorId(id);
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/ativar")
     public ResponseEntity<Void> ativarCategoria(@PathVariable Long id) {
         categoriaService.ativarCategoriaPorId(id);

@@ -4,6 +4,7 @@ import com.estoqueplan.estoque_plan.financeiro.model.FormaPagamento;
 import com.estoqueplan.estoque_plan.financeiro.service.FormaPagamentoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,12 +35,14 @@ public class FormaPagamentoController {
         return ResponseEntity.ok(formaPagamentoAtualizada);
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/inativar")
     public ResponseEntity<Void> inativarFormaPagamento(@PathVariable Long id) {
         formaPagamentoService.inativarFormaPagamento(id);
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/ativar")
     public ResponseEntity<Void> ativarFormaPagamento(@PathVariable Long id) {
         formaPagamentoService.ativarFormaPagamento(id);

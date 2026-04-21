@@ -5,6 +5,7 @@ import com.estoqueplan.estoque_plan.service.ClienteService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -48,12 +49,14 @@ public class ClienteController {
         return ResponseEntity.ok(clienteAtualizado);
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/inativar")
     public ResponseEntity<Void> inativarCliente(@PathVariable Long id) {
         clienteService.inativarClientePorId(id);
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PatchMapping("/{id}/ativar")
     public ResponseEntity<Void> ativarCliente(@PathVariable Long id) {
         clienteService.ativarClientePorId(id);
@@ -62,6 +65,7 @@ public class ClienteController {
 
 
     // Deletar cliente por ID
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarCliente(@PathVariable Long id) {
         clienteService.deletar(id);
