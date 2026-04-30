@@ -1,6 +1,8 @@
 package com.estoqueplan.estoque_plan.service;
 
 import com.estoqueplan.estoque_plan.dto.ProdutoDTO;
+import com.estoqueplan.estoque_plan.exception.RecursoNaoEncontradoException;
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.model.Categoria;
 import com.estoqueplan.estoque_plan.model.Produto;
 import com.estoqueplan.estoque_plan.repository.CategoriaRepository;
@@ -42,10 +44,10 @@ public class ProdutoService {
         //Busca e associa a categoria pelo ID recebido no DTO
         if (dto.getCategoriaId() != null) {
             Categoria categoria = categoriaRepository.findById(dto.getCategoriaId())
-                    .orElseThrow(() -> new RuntimeException("Categoria não encontrada"));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada"));
 
             if (!categoria.isAtivo()) {
-                throw new RuntimeException("Categoria inativa. Selecione uma categoria ativa ou verifique o status em Cadastros Gerais!");
+                throw new RegraNegocioException("Categoria inativa. Selecione uma categoria ativa ou verifique o status em Cadastros Gerais!");
             }
 
             produto.setCategoria(categoria);
@@ -58,11 +60,11 @@ public class ProdutoService {
 
     public Produto atualizarProduto(Long id, ProdutoDTO dto) {
         Produto produto = produtoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Produto não encontrado"));
 
         // (Opcional) regra: não editar produto inativo
         if (!produto.isAtivo()) {
-            throw new RuntimeException("Não é possível editar um produto inativo");
+            throw new RegraNegocioException("Não é possível editar um produto inativo");
         }
 
         // Atualiza campos (só atualiza se vier no DTO - evita sobrescrever com null)
@@ -80,7 +82,7 @@ public class ProdutoService {
         // - se não quiser permitir, só altera quando vier != null
         if (dto.getCategoriaId() != null) {
             Categoria categoria = categoriaRepository.findById(dto.getCategoriaId())
-                    .orElseThrow(() -> new RuntimeException("Categoria não encontrada"));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada"));
             produto.setCategoria(categoria);
         }
 
@@ -94,7 +96,7 @@ public class ProdutoService {
 
     public void inativarProdutoPorId(Long id) {
         Produto produto = produtoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Produto não encontrado!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Produto não encontrado!"));
 
         if (!produto.isAtivo()) {
             return;
@@ -107,7 +109,7 @@ public class ProdutoService {
 
     public void ativarProdutoPorId(Long id) {
         Produto produto = produtoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Produto não encontrado"));
 
         produto.setAtivo(true);
         produto.setInativadoEm(null);

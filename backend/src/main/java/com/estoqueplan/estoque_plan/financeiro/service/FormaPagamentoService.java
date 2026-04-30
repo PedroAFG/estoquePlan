@@ -1,5 +1,7 @@
 package com.estoqueplan.estoque_plan.financeiro.service;
 
+import com.estoqueplan.estoque_plan.exception.RecursoNaoEncontradoException;
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.financeiro.model.FormaPagamento;
 import com.estoqueplan.estoque_plan.financeiro.repository.FormaPagamentoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,16 +29,16 @@ public class FormaPagamentoService {
 
     public FormaPagamento atualizarFormaPagamento(Long id, FormaPagamento formaPagamentoAtualizada) {
         FormaPagamento formaPagamento = formaPagamentoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Forma de pagamento não encontrada!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada!"));
 
         if (formaPagamentoAtualizada.getTipo() == null) {
-            throw new RuntimeException("Tipo é obrigatório!");
+            throw new RegraNegocioException("Tipo é obrigatório!");
         }
         if (formaPagamentoAtualizada.getTaxaPercentual() == null) {
-            throw new RuntimeException("Taxa é obrigatória!");
+            throw new RegraNegocioException("Taxa é obrigatória!");
         }
         if (formaPagamentoAtualizada.getPrazoDiasRepasse() == null) {
-            throw new RuntimeException("Prazo é obrigatório!");
+            throw new RegraNegocioException("Prazo é obrigatório!");
         }
 
         formaPagamento.setTipo(formaPagamentoAtualizada.getTipo());
@@ -48,7 +50,7 @@ public class FormaPagamentoService {
 
     public void inativarFormaPagamento(Long id) {
         FormaPagamento formaPagamento = formaPagamentoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Forma de pagamento não encontrada!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada!"));
 
         if (!formaPagamento.isAtivo()) {
             return;
@@ -60,7 +62,7 @@ public class FormaPagamentoService {
 
     public void ativarFormaPagamento(Long id) {
         FormaPagamento formaPagamento = formaPagamentoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Forma de pagamento não encontrada"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada"));
 
         formaPagamento.setAtivo(true);
         formaPagamento.setInativadoEm(null);

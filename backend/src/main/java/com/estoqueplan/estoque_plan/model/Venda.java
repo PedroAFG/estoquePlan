@@ -22,6 +22,8 @@ public class Venda {
     private StatusVenda status = StatusVenda.ATIVA;
 
     private LocalDateTime canceladaEm;
+
+    @Column(length = 200)
     private String motivoCancelamento;
 
     @ManyToOne

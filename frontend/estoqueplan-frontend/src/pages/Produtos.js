@@ -37,6 +37,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import BlockIcon from "@mui/icons-material/Block";
+import RestoreIcon from "@mui/icons-material/Restore";
 
 import apiService from "../services/api";
 
@@ -131,6 +132,25 @@ export default function Produtos() {
 
   const [incluirInativos, setIncluirInativos] = useState(false);
   const [filters, setFilters] = useState(emptyFilters);
+
+  const [openImport, setOpenImport] = useState(false);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const carregarUsuarioLogado = async () => {
+      try {
+        const me = await apiService.getMe();
+        setIsAdmin(me?.permissao === "ADMINISTRADOR");
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+
+    carregarUsuarioLogado();
+  }, []);
+
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const total = produtos.length;
 
@@ -329,22 +349,46 @@ export default function Produtos() {
     }
   };
 
-  const handleInativar = async (p) => {
-    const ok = window.confirm(
-      `Inativar o produto "${p.descricao}"?\n(Ele não será excluído)`
-    );
-    if (!ok) return;
+  const pedirConfirmacaoInativar = (produto) => {
+    setConfirmAction({
+      tipo: "INATIVAR",
+      produto,
+      titulo: "Inativar produto",
+      mensagem: `Deseja realmente inativar o produto "${produto.descricao}"? Ele não será excluído do sistema.`,
+    });
+  };
+
+  const pedirConfirmacaoAtivar = (produto) => {
+    setConfirmAction({
+      tipo: "ATIVAR",
+      produto,
+      titulo: "Reativar produto",
+      mensagem: `Deseja realmente reativar o produto "${produto.descricao}"? Ele voltará a aparecer nas operações normais do sistema.`,
+    });
+  };
+
+  const executarAcaoConfirmada = async () => {
+    if (!confirmAction?.produto) return;
 
     try {
       setPageError("");
       setPageSuccess("");
       setLoading(true);
 
-      await apiService.inativarProduto(p.id);
+      if (confirmAction.tipo === "INATIVAR") {
+        await apiService.inativarProduto(confirmAction.produto.id);
+        setPageSuccess("Produto inativado com sucesso.");
+      }
+
+      if (confirmAction.tipo === "ATIVAR") {
+        await apiService.ativarProduto(confirmAction.produto.id);
+        setPageSuccess("Produto reativado com sucesso.");
+      }
+
+      setConfirmAction(null);
       await loadData();
-      setPageSuccess("Produto inativado com sucesso.");
     } catch (e) {
-      setPageError(e?.message || "Erro ao inativar produto");
+      setPageError(e?.message || "Erro ao executar ação no produto.");
     } finally {
       setLoading(false);
     }
@@ -422,6 +466,85 @@ export default function Produtos() {
       .sort((a, b) => (a.descricao || "").localeCompare(b.descricao || ""));
   }, [produtos, filters]);
 
+  const baixarArquivo = (blob, nomeArquivo) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleExportarXlsx = async () => {
+    try {
+      setPageError("");
+      setPageSuccess("");
+      setLoading(true);
+
+      const blob = await apiService.exportarProdutosXlsx({ incluirInativos });
+      baixarArquivo(blob, "produtos.xlsx");
+
+      setPageSuccess("Produtos exportados em XLSX com sucesso.");
+    } catch (e) {
+      setPageError(e?.message || "Erro ao exportar produtos em XLSX.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportarPdf = async () => {
+    try {
+      setPageError("");
+      setPageSuccess("");
+      setLoading(true);
+
+      const blob = await apiService.exportarProdutosPdf({ incluirInativos });
+      baixarArquivo(blob, "produtos.pdf");
+
+      setPageSuccess("Produtos exportados em PDF com sucesso.");
+    } catch (e) {
+      setPageError(e?.message || "Erro ao exportar produtos em PDF.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImportarXlsx = async (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setPageError("");
+      setPageSuccess("");
+      setLoading(true);
+
+      const mensagem = await apiService.importarProdutosXlsx(file);
+
+      await loadData();
+
+      setPageSuccess(mensagem || "Produtos importados com sucesso.");
+    } catch (e) {
+      setPageError(e?.message || "Erro ao importar produtos.");
+    } finally {
+      setLoading(false);
+      event.target.value = "";
+    }
+  };
+
+  const baixarModeloProdutos = () => {
+    const link = document.createElement("a");
+    link.href = "/modelos/import_produtos_estoquePlan.xlsx";
+    link.download = "import_produtos_estoquePlan.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   return (
     <AppLayout title="Produtos">
       <Grid container spacing={2}>
@@ -465,9 +588,17 @@ export default function Produtos() {
                       Novo Produto
                     </Button>
 
-                    <Button variant="contained">Importar</Button>
-                    <Button variant="contained">Exportar XLSX</Button>
-                    <Button variant="contained">Exportar PDF</Button>
+                    <Button variant="contained" onClick={() => setOpenImport(true)}>
+                      Importar
+                    </Button>
+
+                    <Button variant="contained" onClick={handleExportarXlsx}>
+                      Exportar XLSX
+                    </Button>
+
+                    <Button variant="contained" onClick={handleExportarPdf}>
+                      Exportar PDF
+                    </Button>
 
                     <FormControlLabel
                       sx={{ ml: { xs: 0, lg: 1 } }}
@@ -686,17 +817,39 @@ export default function Produtos() {
                               </span>
                             </Tooltip>
 
-                            <Tooltip title="Inativar (não exclui)">
-                              <span>
-                                <IconButton
-                                  color="warning"
-                                  onClick={() => handleInativar(p)}
-                                  disabled={!ativo}
-                                >
-                                  <BlockIcon />
-                                </IconButton>
-                              </span>
-                            </Tooltip>
+                            {isAdmin ? (
+                              ativo ? (
+                                <Tooltip title="Inativar produto">
+                                  <span>
+                                    <IconButton
+                                      color="warning"
+                                      onClick={() => pedirConfirmacaoInativar(p)}
+                                    >
+                                      <BlockIcon />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip title="Reativar produto">
+                                  <span>
+                                    <IconButton
+                                      color="success"
+                                      onClick={() => pedirConfirmacaoAtivar(p)}
+                                    >
+                                      <RestoreIcon />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              )
+                            ) : (
+                              <Tooltip title="Ação disponível apenas para administradores">
+                                <span>
+                                  <IconButton disabled>
+                                    <BlockIcon />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -847,6 +1000,132 @@ export default function Produtos() {
           </Button>
           <Button variant="contained" onClick={handleSave} disabled={loading}>
             Salvar
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={openImport} onClose={() => setOpenImport(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Importar produtos</DialogTitle>
+
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Alert severity="info">
+              Use o modelo padrão para evitar erros de preenchimento. A categoria deve
+              estar cadastrada no sistema com o mesmo nome informado na planilha.
+            </Alert>
+
+            <Button variant="contained" onClick={baixarModeloProdutos}>
+              Baixar modelo XLSX
+            </Button>
+
+            <Button variant="contained" component="label">
+              Selecionar arquivo XLSX
+              <input
+                type="file"
+                hidden
+                accept=".xlsx"
+                onChange={handleImportarXlsx}
+              />
+            </Button>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setOpenImport(false)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 4 } }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            {confirmAction?.tipo === "ATIVAR" ? (
+              <RestoreIcon color="success" />
+            ) : (
+              <BlockIcon color="warning" />
+            )}
+
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                {confirmAction?.tipo === "ATIVAR"
+                  ? "Reativar produto"
+                  : "Inativar produto"}
+              </Typography>
+
+              <Typography variant="body2" color="text.secondary">
+                {confirmAction?.tipo === "ATIVAR"
+                  ? "Confirme a reativação do produto selecionado."
+                  : "Confirme a inativação do produto selecionado."}
+              </Typography>
+            </Box>
+          </Stack>
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={2}>
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 2,
+                borderRadius: 3,
+                bgcolor: "grey.50",
+              }}
+            >
+              <Stack spacing={1}>
+
+                <Typography variant="body2">
+                  <strong>Descrição:</strong>{" "}
+                  {confirmAction?.produto?.descricao || "-"}
+                </Typography>
+
+                <Typography variant="body2">
+                  <strong>Categoria:</strong>{" "}
+                  {confirmAction?.produto?.categoria?.nome || "-"}
+                </Typography>
+
+                <Typography variant="body2">
+                  <strong>Quantidade:</strong>{" "}
+                  {confirmAction?.produto?.quantidadeDisponivel ?? 0}
+                </Typography>
+
+                <Typography variant="body2">
+                  <strong>Status atual:</strong>{" "}
+                  {(confirmAction?.produto?.ativo ?? true) ? "ATIVO" : "INATIVO"}
+                </Typography>
+              </Stack>
+            </Paper>
+
+            <Alert severity={confirmAction?.tipo === "ATIVAR" ? "success" : "warning"}>
+              {confirmAction?.tipo === "ATIVAR"
+                ? "Ao reativar o produto, ele voltará a aparecer nas operações normais do sistema."
+                : "Ao inativar o produto, ele deixará de aparecer nas operações normais, mas não será excluído do sistema."}
+            </Alert>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setConfirmAction(null)}
+            disabled={loading}
+          >
+            Voltar
+          </Button>
+
+          <Button
+            variant="contained"
+            color={confirmAction?.tipo === "ATIVAR" ? "success" : "warning"}
+            startIcon={
+              confirmAction?.tipo === "ATIVAR" ? <RestoreIcon /> : <BlockIcon />
+            }
+            onClick={executarAcaoConfirmada}
+            disabled={loading}
+          >
+            {confirmAction?.tipo === "ATIVAR"
+              ? "Confirmar reativação"
+              : "Confirmar inativação"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -2,7 +2,6 @@ package com.estoqueplan.estoque_plan.model;
 
 import lombok.Data;
 import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
 
 @Entity

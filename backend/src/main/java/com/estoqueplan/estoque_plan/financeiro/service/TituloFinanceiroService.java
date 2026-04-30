@@ -1,5 +1,7 @@
 package com.estoqueplan.estoque_plan.financeiro.service;
 
+import com.estoqueplan.estoque_plan.exception.RecursoNaoEncontradoException;
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.financeiro.dto.TituloFinanceiroCreateDTO;
 import com.estoqueplan.estoque_plan.financeiro.dto.TituloFinanceiroResponseDTO;
 import com.estoqueplan.estoque_plan.financeiro.model.CategoriaFinanceira;
@@ -42,10 +44,10 @@ public class TituloFinanceiroService {
         validarCreate(dto);
 
         CategoriaFinanceira cat = categoriaRepo.findByIdAndAtivoTrue(dto.getCategoriaId())
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada ou inativa."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada ou inativa."));
 
         FormaPagamento forma = formaRepo.findByIdAndAtivoTrue(dto.getFormaPagamentoId())
-                .orElseThrow(() -> new RuntimeException("FormaPagamento não encontrada ou inativa: " + dto.getFormaPagamentoId()));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("FormaPagamento não encontrada ou inativa: " + dto.getFormaPagamentoId()));
 
         TituloFinanceiro titulo = new TituloFinanceiro();
         titulo.setTipo(dto.getTipo());
@@ -76,30 +78,30 @@ public class TituloFinanceiroService {
                                                 String descricaoTitulo) {
 
         if (venda == null) {
-            throw new RuntimeException("Venda não pode ser nula.");
+            throw new RegraNegocioException("Venda não pode ser nula.");
         }
 
         if (venda.getId() == null) {
-            throw new RuntimeException("A venda precisa estar salva antes de gerar o título.");
+            throw new RegraNegocioException("A venda precisa estar salva antes de gerar o título.");
         }
 
         if (venda.getValorTotal() == null || venda.getValorTotal().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("Venda com valor total inválido para geração do título.");
+            throw new RegraNegocioException("Venda com valor total inválido para geração do título.");
         }
 
         if (categoriaId == null) {
-            throw new RuntimeException("categoriaFinanceiraId é obrigatório para gerar título da venda.");
+            throw new RegraNegocioException("categoriaFinanceiraId é obrigatório para gerar título da venda.");
         }
 
         if (formaPagamentoId == null) {
-            throw new RuntimeException("formaPagamentoId é obrigatório para gerar título da venda.");
+            throw new RegraNegocioException("formaPagamentoId é obrigatório para gerar título da venda.");
         }
 
         CategoriaFinanceira categoria = categoriaRepo.findByIdAndAtivoTrue(categoriaId)
-                .orElseThrow(() -> new RuntimeException("Categoria financeira não encontrada ou inativa."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria financeira não encontrada ou inativa."));
 
         FormaPagamento formaPagamento = formaRepo.findByIdAndAtivoTrue(formaPagamentoId)
-                .orElseThrow(() -> new RuntimeException("Forma de pagamento não encontrada ou inativa."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada ou inativa."));
 
         int quantidadeParcelas = (numeroParcelas != null && numeroParcelas > 0) ? numeroParcelas : 1;
         int intervalo = (intervaloDias != null && intervaloDias > 0) ? intervaloDias : 30;
@@ -138,22 +140,22 @@ public class TituloFinanceiroService {
 
     public TituloFinanceiroResponseDTO buscarPorId(Long id) {
         TituloFinanceiro t = tituloRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Título não encontrado: " + id));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Título não encontrado: " + id));
         return mapToResponse(t);
     }
 
     private void validarCreate(TituloFinanceiroCreateDTO dto) {
-        if (dto == null) throw new RuntimeException("Body não pode ser vazio.");
-        if (dto.getTipo() == null) throw new RuntimeException("Tipo (A_PAGAR/A_RECEBER) é obrigatório.");
-        if (dto.getDescricao() == null || dto.getDescricao().isBlank()) throw new RuntimeException("Descrição é obrigatória.");
-        if (dto.getCategoriaId() == null) throw new RuntimeException("categoriaId é obrigatório.");
-        if (dto.getFormaPagamentoId() == null) throw new RuntimeException("formaPagamentoId é obrigatório.");
+        if (dto == null) throw new RegraNegocioException("Body não pode ser vazio.");
+        if (dto.getTipo() == null) throw new RegraNegocioException("Tipo (A_PAGAR/A_RECEBER) é obrigatório.");
+        if (dto.getDescricao() == null || dto.getDescricao().isBlank()) throw new RegraNegocioException("Descrição é obrigatória.");
+        if (dto.getCategoriaId() == null) throw new RegraNegocioException("categoriaId é obrigatório.");
+        if (dto.getFormaPagamentoId() == null) throw new RegraNegocioException("formaPagamentoId é obrigatório.");
         if (dto.getValorTotal() == null || dto.getValorTotal().compareTo(BigDecimal.ZERO) <= 0)
-            throw new RuntimeException("valorTotal deve ser maior que zero.");
+            throw new RegraNegocioException("valorTotal deve ser maior que zero.");
         if (dto.getNumeroParcelas() == null || dto.getNumeroParcelas() <= 0)
-            throw new RuntimeException("numeroParcelas deve ser >= 1.");
+            throw new RegraNegocioException("numeroParcelas deve ser >= 1.");
         if (dto.getPrimeiroVencimento() == null)
-            throw new RuntimeException("primeiroVencimento é obrigatório.");
+            throw new RegraNegocioException("primeiroVencimento é obrigatório.");
     }
 
     private List<ParcelaFinanceira> gerarParcelas(TituloFinanceiro titulo, FormaPagamento forma,
@@ -182,6 +184,68 @@ public class TituloFinanceiroService {
             lista.add(p);
         }
         return lista;
+    }
+
+    @Transactional
+    public TituloFinanceiroResponseDTO cancelarTitulo(Long id) {
+        TituloFinanceiro titulo = tituloRepo.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Título não encontrado: " + id));
+
+        if (titulo.getStatus() == StatusTitulo.CANCELADO) {
+            return mapToResponse(titulo);
+        }
+
+        if (titulo.getVenda() != null) {
+            throw new RegraNegocioException(
+                    "Este título está vinculado a uma venda e só pode ser cancelado através do cancelamento da venda."
+            );
+        }
+
+        cancelarTituloInterno(titulo);
+
+        TituloFinanceiro salvo = tituloRepo.save(titulo);
+        return mapToResponse(salvo);
+    }
+
+    @Transactional
+    public void cancelarTituloPorVenda(Venda venda) {
+        if (venda == null || venda.getId() == null) {
+            throw new RegraNegocioException("Venda inválida para cancelamento dos títulos financeiros.");
+        }
+
+        List<TituloFinanceiro> titulos = tituloRepo.findAll()
+                .stream()
+                .filter(t -> t.getVenda() != null && t.getVenda().getId().equals(venda.getId()))
+                .toList();
+
+        for (TituloFinanceiro titulo : titulos) {
+            if (titulo.getStatus() != StatusTitulo.CANCELADO) {
+                cancelarTituloInterno(titulo);
+                tituloRepo.save(titulo);
+            }
+        }
+    }
+
+    private void cancelarTituloInterno(TituloFinanceiro titulo) {
+        if (titulo.getStatus() == StatusTitulo.PAGO_RECEBIDO) {
+            throw new RegraNegocioException("Não é possível cancelar um título já pago/recebido.");
+        }
+
+        if (titulo.getParcelas() != null) {
+            for (ParcelaFinanceira parcela : titulo.getParcelas()) {
+                if (parcela.getStatus() == StatusTitulo.PAGO_RECEBIDO) {
+                    throw new RegraNegocioException(
+                            "Não é possível cancelar o título, pois a parcela " +
+                                    parcela.getNumero() + " já está paga/recebida."
+                    );
+                }
+
+                parcela.setStatus(StatusTitulo.CANCELADO);
+                parcela.setDataBaixa(null);
+            }
+        }
+
+        titulo.setStatus(StatusTitulo.CANCELADO);
     }
 
     private TituloFinanceiroResponseDTO mapToResponse(TituloFinanceiro t) {

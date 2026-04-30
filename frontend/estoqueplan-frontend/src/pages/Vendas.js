@@ -3,6 +3,7 @@ import AppLayout from "../layout/AppLayout";
 
 import {
     Grid,
+    Checkbox,
     Paper,
     Typography,
     Stack,
@@ -48,7 +49,7 @@ import BlockIcon from "@mui/icons-material/Block";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import PrintIcon from "@mui/icons-material/Print";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
-
+import dayjs from "dayjs";
 import apiService from "../services/api";
 
 const emptyItem = {
@@ -84,8 +85,9 @@ const emptyForm = {
 
     categoriaFinanceiraId: "",
     formaPagamentoId: "",
+    tipoPagamento: "AVISTA",
     numeroParcelas: 1,
-    primeiroVencimento: new Date().toISOString().split("T")[0],
+    primeiroVencimento: dayjs().format("YYYY-MM-DD"),
     intervaloDias: 30,
     descricaoTitulo: "",
 };
@@ -113,8 +115,9 @@ const emptyFilters = {
     status: "TODAS",
     valorMin: "",
     valorMax: "",
-    dataInicial: "",
-    dataFinal: "",
+    periodo: "month",
+    dataInicial: dayjs().startOf("month").format("YYYY-MM-DD"),
+    dataFinal: dayjs().format("YYYY-MM-DD"),
 };
 
 export default function Vendas() {
@@ -145,6 +148,12 @@ export default function Vendas() {
 
     const [openDetails, setOpenDetails] = useState(false);
     const [details, setDetails] = useState(null);
+
+    const [openCancelVenda, setOpenCancelVenda] = useState(false);
+    const [vendaToCancel, setVendaToCancel] = useState(null);
+    const [motivoCancelamento, setMotivoCancelamento] = useState("");
+
+    const [isAdmin, setIsAdmin] = useState(false);
 
     const total = vendas.length;
 
@@ -201,6 +210,19 @@ export default function Vendas() {
         loadData();
     }, []);
 
+    useEffect(() => {
+        const carregarUsuarioLogado = async () => {
+            try {
+                const me = await apiService.getMe();
+                setIsAdmin(me?.permissao === "ADMINISTRADOR");
+            } catch {
+                setIsAdmin(false);
+            }
+        };
+
+        carregarUsuarioLogado();
+    }, []);
+
     const getClienteById = (id) =>
         clientes.find((c) => Number(c.id) === Number(id));
 
@@ -222,6 +244,28 @@ export default function Vendas() {
                 variant={st === "ATIVA" ? "filled" : "outlined"}
             />
         );
+    };
+
+    const handleTipoPagamentoChange = (tipoPagamento) => {
+        const hoje = dayjs().format("YYYY-MM-DD");
+
+        setForm((prev) => ({
+            ...prev,
+            tipoPagamento,
+            numeroParcelas: tipoPagamento === "AVISTA" ? 1 : prev.numeroParcelas || 2,
+            primeiroVencimento:
+                tipoPagamento === "AVISTA" ? hoje : prev.primeiroVencimento || hoje,
+            intervaloDias: tipoPagamento === "AVISTA" ? 30 : prev.intervaloDias || 30,
+        }));
+
+        setFormErrors((prev) => ({
+            ...prev,
+            numeroParcelas: "",
+            primeiroVencimento: "",
+            intervaloDias: "",
+        }));
+
+        setFormError("");
     };
 
     const vendasFiltradas = useMemo(() => {
@@ -357,6 +401,7 @@ export default function Vendas() {
 
             categoriaFinanceiraId: v.categoriaFinanceiraId ?? "",
             formaPagamentoId: v.formaPagamentoId ?? "",
+            tipoPagamento: Number(v.numeroParcelas ?? 1) > 1 ? "PARCELADO" : "AVISTA",
             numeroParcelas: v.numeroParcelas ?? 1,
             primeiroVencimento:
                 v.primeiroVencimento ?? new Date().toISOString().split("T")[0],
@@ -807,27 +852,36 @@ export default function Vendas() {
         }
     };
 
-    const handleCancelar = async (v) => {
+    const handleCancelar = (v) => {
         const st = v.status || "ATIVA";
         if (st !== "ATIVA") return;
 
-        const motivo = window.prompt(
-            `Cancelar a venda #${v.id}?\nVocê pode informar um motivo (opcional):`,
-            ""
-        );
+        setVendaToCancel(v);
+        setMotivoCancelamento("");
+        setOpenCancelVenda(true);
+    };
 
-        if (motivo === null) return;
+    const confirmarCancelamentoVenda = async () => {
+        if (!vendaToCancel?.id) return;
 
         try {
             setPageError("");
             setPageSuccess("");
             setLoading(true);
 
-            await apiService.cancelarVenda(v.id, motivo || "");
+            await apiService.cancelarVenda(
+                vendaToCancel.id,
+                motivoCancelamento || ""
+            );
+
             await loadData();
+
             setPageSuccess("Venda cancelada com sucesso.");
+            setOpenCancelVenda(false);
+            setVendaToCancel(null);
+            setMotivoCancelamento("");
         } catch (e) {
-            setPageError(e?.message || "Erro ao cancelar venda");
+            setPageError(e?.message || "Erro ao cancelar venda.");
         } finally {
             setLoading(false);
         }
@@ -888,6 +942,112 @@ export default function Vendas() {
         });
     };
 
+    const PERIOD_OPTIONS = [
+        { value: "today", label: "Hoje" },
+        { value: "yesterday", label: "Ontem" },
+        { value: "last7", label: "Últimos 7 dias" },
+        { value: "month", label: "Mês atual" },
+        { value: "last30", label: "Últimos 30 dias" },
+        { value: "custom", label: "Período personalizado" },
+    ];
+
+    function resolvePeriodDates(periodKey, customRange) {
+        const today = dayjs();
+
+        switch (periodKey) {
+            case "today":
+                return {
+                    dataInicial: today.format("YYYY-MM-DD"),
+                    dataFinal: today.format("YYYY-MM-DD"),
+                };
+
+            case "yesterday": {
+                const yesterday = today.subtract(1, "day");
+                return {
+                    dataInicial: yesterday.format("YYYY-MM-DD"),
+                    dataFinal: yesterday.format("YYYY-MM-DD"),
+                };
+            }
+
+            case "last7":
+                return {
+                    dataInicial: today.subtract(6, "day").format("YYYY-MM-DD"),
+                    dataFinal: today.format("YYYY-MM-DD"),
+                };
+
+            case "month":
+                return {
+                    dataInicial: today.startOf("month").format("YYYY-MM-DD"),
+                    dataFinal: today.format("YYYY-MM-DD"),
+                };
+
+            case "last30":
+                return {
+                    dataInicial: today.subtract(29, "day").format("YYYY-MM-DD"),
+                    dataFinal: today.format("YYYY-MM-DD"),
+                };
+
+            case "custom":
+                return {
+                    dataInicial: customRange.dataInicial || "",
+                    dataFinal: customRange.dataFinal || "",
+                };
+
+            default:
+                return {
+                    dataInicial: "",
+                    dataFinal: "",
+                };
+        }
+    }
+
+    const baixarArquivo = (blob, nomeArquivo) => {
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = nomeArquivo;
+        document.body.appendChild(link);
+        link.click();
+
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const handleExportarXlsx = async () => {
+        try {
+            setPageError("");
+            setPageSuccess("");
+            setLoading(true);
+
+            const blob = await apiService.exportarVendasXlsx();
+            baixarArquivo(blob, "vendas.xlsx");
+
+            setPageSuccess("Vendas exportadas em XLSX com sucesso.");
+        } catch (e) {
+            setPageError(e?.message || "Erro ao exportar vendas em XLSX.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExportarPdf = async () => {
+        try {
+            setPageError("");
+            setPageSuccess("");
+            setLoading(true);
+
+            const blob = await apiService.exportarVendasPdf();
+            baixarArquivo(blob, "vendas.pdf");
+
+            setPageSuccess("Vendas exportadas em PDF com sucesso.");
+        } catch (e) {
+            setPageError(e?.message || "Erro ao exportar vendas em PDF.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <AppLayout title="Vendas">
             <Grid container spacing={2}>
@@ -932,8 +1092,13 @@ export default function Vendas() {
                                             Nova Venda
                                         </Button>
 
-                                        <Button variant="contained">Exportar XLSX</Button>
-                                        <Button variant="contained">Exportar PDF</Button>
+                                        <Button variant="contained" onClick={handleExportarXlsx}>
+                                            Exportar XLSX
+                                        </Button>
+
+                                        <Button variant="contained" onClick={handleExportarPdf}>
+                                            Exportar PDF
+                                        </Button>
 
                                         <FormControlLabel
                                             sx={{ ml: { xs: 0, lg: 1 } }}
@@ -959,7 +1124,10 @@ export default function Vendas() {
                                     gridTemplateColumns: {
                                         xs: "1fr",
                                         md: "1fr 1fr",
-                                        xl: "minmax(260px,1.9fr) minmax(160px,1fr) minmax(140px,0.85fr) minmax(140px,0.85fr) minmax(170px,1fr) minmax(170px,1fr) auto",
+                                        xl:
+                                            filters.periodo === "custom"
+                                                ? "minmax(220px,1.4fr) minmax(140px,0.8fr) minmax(140px,0.8fr) minmax(200px,1.1fr) minmax(190px,1fr) minmax(150px,0.8fr) minmax(150px,0.8fr) auto"
+                                                : "minmax(220px,1.5fr) minmax(140px,0.8fr) minmax(140px,0.8fr) minmax(220px,1.2fr) minmax(190px,1fr) auto",
                                     },
                                     gap: 2,
                                     alignItems: "center",
@@ -1025,33 +1193,68 @@ export default function Vendas() {
                                     fullWidth
                                 />
 
-                                <TextField
-                                    label="Data inicial"
-                                    type="date"
-                                    value={filters.dataInicial}
-                                    onChange={(e) =>
-                                        setFilters((prev) => ({
-                                            ...prev,
-                                            dataInicial: e.target.value,
-                                        }))
-                                    }
-                                    InputLabelProps={{ shrink: true }}
-                                    fullWidth
-                                />
+                                <FormControl fullWidth>
+                                    <InputLabel>Período</InputLabel>
+                                    <Select
+                                        label="Período"
+                                        value={filters.periodo}
+                                        onChange={(e) => {
+                                            const novoPeriodo = e.target.value;
 
-                                <TextField
-                                    label="Data final"
-                                    type="date"
-                                    value={filters.dataFinal}
-                                    onChange={(e) =>
-                                        setFilters((prev) => ({
-                                            ...prev,
-                                            dataFinal: e.target.value,
-                                        }))
-                                    }
-                                    InputLabelProps={{ shrink: true }}
-                                    fullWidth
-                                />
+                                            setFilters((prev) => {
+                                                const datas = resolvePeriodDates(novoPeriodo, {
+                                                    dataInicial: prev.dataInicial,
+                                                    dataFinal: prev.dataFinal,
+                                                });
+
+                                                return {
+                                                    ...prev,
+                                                    periodo: novoPeriodo,
+                                                    dataInicial: datas.dataInicial,
+                                                    dataFinal: datas.dataFinal,
+                                                };
+                                            });
+                                        }}
+                                    >
+                                        {PERIOD_OPTIONS.map((option) => (
+                                            <MenuItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+
+                                {filters.periodo === "custom" && (
+                                    <>
+                                        <TextField
+                                            label="Data inicial"
+                                            type="date"
+                                            value={filters.dataInicial}
+                                            onChange={(e) =>
+                                                setFilters((prev) => ({
+                                                    ...prev,
+                                                    dataInicial: e.target.value,
+                                                }))
+                                            }
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                        />
+
+                                        <TextField
+                                            label="Data final"
+                                            type="date"
+                                            value={filters.dataFinal}
+                                            onChange={(e) =>
+                                                setFilters((prev) => ({
+                                                    ...prev,
+                                                    dataFinal: e.target.value,
+                                                }))
+                                            }
+                                            InputLabelProps={{ shrink: true }}
+                                            fullWidth
+                                        />
+                                    </>
+                                )}
 
                                 <Button
                                     variant="text"
@@ -1111,7 +1314,7 @@ export default function Vendas() {
                                     <TableHead>
                                         <TableRow>
                                             <TableCell>
-                                                <b>#</b>
+                                                <b>ID</b>
                                             </TableCell>
                                             <TableCell>
                                                 <b>Data</b>
@@ -1183,19 +1386,27 @@ export default function Vendas() {
                                                             </span>
                                                         </Tooltip>
 
-                                                        <Tooltip
-                                                            title={ativa ? "Cancelar venda" : "Já cancelada"}
-                                                        >
-                                                            <span>
-                                                                <IconButton
-                                                                    color="warning"
-                                                                    onClick={() => handleCancelar(v)}
-                                                                    disabled={!ativa}
-                                                                >
-                                                                    <BlockIcon />
-                                                                </IconButton>
-                                                            </span>
-                                                        </Tooltip>
+                                                        {isAdmin ? (
+                                                            <Tooltip title={ativa ? "Cancelar venda" : "Já cancelada"}>
+                                                                <span>
+                                                                    <IconButton
+                                                                        color="warning"
+                                                                        onClick={() => handleCancelar(v)}
+                                                                        disabled={!ativa}
+                                                                    >
+                                                                        <BlockIcon />
+                                                                    </IconButton>
+                                                                </span>
+                                                            </Tooltip>
+                                                        ) : (
+                                                            <Tooltip title="Cancelamento disponível apenas para administradores">
+                                                                <span>
+                                                                    <IconButton disabled>
+                                                                        <BlockIcon />
+                                                                    </IconButton>
+                                                                </span>
+                                                            </Tooltip>
+                                                        )}
                                                     </TableCell>
                                                 </TableRow>
                                             );
@@ -1610,6 +1821,28 @@ export default function Vendas() {
                                     Financeiro / Pagamento
                                 </Typography>
 
+                                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                                    <FormControlLabel
+                                        control={
+                                            <Checkbox
+                                                checked={form.tipoPagamento === "AVISTA"}
+                                                onChange={() => handleTipoPagamentoChange("AVISTA")}
+                                            />
+                                        }
+                                        label="Pagamento à vista"
+                                    />
+
+                                    <FormControlLabel
+                                        control={
+                                            <Checkbox
+                                                checked={form.tipoPagamento === "PARCELADO"}
+                                                onChange={() => handleTipoPagamentoChange("PARCELADO")}
+                                            />
+                                        }
+                                        label="Pagamento parcelado"
+                                    />
+                                </Stack>
+
                                 <Grid container spacing={2}>
                                     <Grid item xs={12} md={4}>
                                         <FormControl
@@ -1705,6 +1938,7 @@ export default function Vendas() {
                                             error={!!formErrors.numeroParcelas}
                                             helperText={formErrors.numeroParcelas}
                                             fullWidth
+                                            disabled={form.tipoPagamento === "AVISTA"}
                                         />
                                     </Grid>
 
@@ -1723,6 +1957,7 @@ export default function Vendas() {
                                             helperText={formErrors.primeiroVencimento}
                                             fullWidth
                                             InputLabelProps={{ shrink: true }}
+                                            disabled={form.tipoPagamento === "AVISTA"}
                                         />
                                     </Grid>
 
@@ -1733,15 +1968,15 @@ export default function Vendas() {
                                             inputProps={{ min: 1 }}
                                             value={form.intervaloDias}
                                             onChange={(e) =>
-                                                updateFormField(
-                                                    "intervaloDias",
-                                                    e.target.value
-                                                )
+                                                updateFormField("intervaloDias", e.target.value)
                                             }
                                             error={!!formErrors.intervaloDias}
                                             helperText={formErrors.intervaloDias}
                                             fullWidth
-                                            disabled={Number(form.numeroParcelas || 1) <= 1}
+                                            disabled={
+                                                form.tipoPagamento === "AVISTA" ||
+                                                Number(form.numeroParcelas || 1) <= 1
+                                            }
                                         />
                                     </Grid>
                                 </Grid>
@@ -2097,6 +2332,117 @@ export default function Vendas() {
                         </Button>
                     )}
                     <Button onClick={closeView}>Fechar</Button>
+                </DialogActions>
+            </Dialog>
+            <Dialog
+                open={openCancelVenda}
+                onClose={() => {
+                    setOpenCancelVenda(false);
+                    setVendaToCancel(null);
+                    setMotivoCancelamento("");
+                }}
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 4 } }}
+            >
+                <DialogTitle sx={{ pb: 1 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center">
+                        <BlockIcon color="warning" />
+
+                        <Box>
+                            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                Cancelar venda
+                            </Typography>
+
+                            <Typography variant="body2" color="text.secondary">
+                                Confirme o cancelamento da venda selecionada.
+                            </Typography>
+                        </Box>
+                    </Stack>
+                </DialogTitle>
+
+                <DialogContent>
+                    <Stack spacing={2}>
+                        <Paper
+                            variant="outlined"
+                            sx={{
+                                p: 2,
+                                borderRadius: 3,
+                                bgcolor: "grey.50",
+                            }}
+                        >
+                            <Stack spacing={1}>
+                                <Typography variant="body2" color="text.secondary">
+                                    Venda
+                                </Typography>
+
+                                <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                                    {vendaToCancel?.id || "-"}
+                                </Typography>
+
+                                <Divider sx={{ my: 1 }} />
+
+                                <Typography variant="body2">
+                                    <strong>Cliente:</strong>{" "}
+                                    {vendaToCancel?.nomeCliente ||
+                                        getClienteNome(vendaToCancel?.clienteId)}
+                                </Typography>
+
+                                <Typography variant="body2">
+                                    <strong>Total:</strong> {money(vendaToCancel?.valorTotal)}
+                                </Typography>
+
+                                <Typography variant="body2">
+                                    <strong>Itens:</strong>{" "}
+                                    {(vendaToCancel?.itens || []).length}
+                                </Typography>
+                            </Stack>
+                        </Paper>
+
+                        <Alert severity="warning">
+                            Ao cancelar a venda, o estoque será devolvido e os títulos
+                            financeiros vinculados serão cancelados em cascata.
+                        </Alert>
+
+                        <TextField
+                            label="Motivo do cancelamento"
+                            value={motivoCancelamento}
+                            onChange={(e) => setMotivoCancelamento(e.target.value)}
+                            fullWidth
+                            multiline
+                            minRows={3}
+                            inputProps={{ maxLength: 200 }}
+                            helperText={
+                                <Box display="flex" justifyContent="space-between">
+                                    <span>Opcional</span>
+                                    <span>{motivoCancelamento.length}/200</span>
+                                </Box>
+                            }
+                        />
+                    </Stack>
+                </DialogContent>
+
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button
+                        onClick={() => {
+                            setOpenCancelVenda(false);
+                            setVendaToCancel(null);
+                            setMotivoCancelamento("");
+                        }}
+                        disabled={loading}
+                    >
+                        Voltar
+                    </Button>
+
+                    <Button
+                        variant="contained"
+                        color="warning"
+                        startIcon={<BlockIcon />}
+                        onClick={confirmarCancelamentoVenda}
+                        disabled={loading}
+                    >
+                        Confirmar cancelamento
+                    </Button>
                 </DialogActions>
             </Dialog>
         </AppLayout>

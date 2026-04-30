@@ -2,7 +2,6 @@ package com.estoqueplan.estoque_plan.dto;
 
 import com.estoqueplan.estoque_plan.model.enums.StatusVenda;
 import lombok.Data;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;

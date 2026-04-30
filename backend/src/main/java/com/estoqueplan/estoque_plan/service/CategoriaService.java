@@ -1,5 +1,7 @@
 package com.estoqueplan.estoque_plan.service;
 
+import com.estoqueplan.estoque_plan.exception.RecursoNaoEncontradoException;
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.model.Categoria;
 import com.estoqueplan.estoque_plan.repository.CategoriaRepository;
 import com.estoqueplan.estoque_plan.repository.ProdutoRepository;
@@ -35,13 +37,13 @@ public class CategoriaService {
 
     public Categoria atualizarCategoria(Long id, Categoria categoriaAtualizada) {
         Categoria categoria = categoriaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada!"));
 
         // atualiza somente o que você permite editar
         if (categoriaAtualizada.getNome() != null && !categoriaAtualizada.getNome().isBlank()) {
             categoria.setNome(categoriaAtualizada.getNome().trim());
         } else {
-            throw new RuntimeException("Nome da categoria é obrigatório");
+            throw new RegraNegocioException("Nome da categoria é obrigatório");
         }
 
         return categoriaRepository.save(categoria);
@@ -49,7 +51,7 @@ public class CategoriaService {
 
     public void inativarCategoriaPorId(Long id) {
         Categoria categoria = categoriaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada!"));
 
         if (!categoria.isAtivo()) {
             return;
@@ -62,7 +64,7 @@ public class CategoriaService {
 
     public void ativarCategoriaPorId(Long id) {
         Categoria categoria = categoriaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada!"));
 
         categoria.setAtivo(true);
         categoria.setInativadoEm(null);
@@ -71,12 +73,12 @@ public class CategoriaService {
 
     public void deletarCategoria(Long id) {
         if (!categoriaRepository.existsById(id)) {
-            throw new RuntimeException("Categoria não encontrada!");
+            throw new RecursoNaoEncontradoException("Categoria não encontrada!");
         }
 
         boolean temProdutoAssoaciado = produtoRepository.existsByCategoriaId(id);
         if (temProdutoAssoaciado) {
-            throw new RuntimeException("Não é possível excluir: existem produtos vinculados a esta categoria!");
+            throw new RegraNegocioException("Não é possível excluir: existem produtos vinculados a esta categoria!");
         }
 
         categoriaRepository.deleteById(id);

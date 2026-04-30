@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box,
   TextField,
@@ -11,11 +11,10 @@ import {
   InputAdornment,
   GlobalStyles,
 } from "@mui/material";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import apiService from "../services/api";
-import { useUser } from "../contexts/UserContext";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import logoEstoquePlan from "../assets/estoqueplan-logo.png";
+import apiService from "../services/api";
 
 const campoSx = {
   "& .MuiOutlinedInput-root": {
@@ -46,47 +45,55 @@ const campoSx = {
   },
 };
 
-const Login = () => {
+const RedefinirSenha = () => {
   const navigate = useNavigate();
-  const { setUserFromLogin } = useUser();
+  const [searchParams] = useSearchParams();
 
-  const [formData, setFormData] = useState({
-    login: "",
-    senha: "",
-  });
+  const token = searchParams.get("token");
 
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    if (error) setError("");
-  };
+  const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErro("");
+    setSucesso("");
 
-    if (!formData.login || !formData.senha) {
-      setError("Por favor, preencha todos os campos");
+    if (!token) {
+      setErro("Token de redefinição inválido ou ausente.");
+      return;
+    }
+
+    if (!novaSenha || !confirmarSenha) {
+      setErro("Preencha todos os campos.");
+      return;
+    }
+
+    if (novaSenha.length < 6) {
+      setErro("A nova senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+
+    if (novaSenha !== confirmarSenha) {
+      setErro("As senhas não coincidem.");
       return;
     }
 
     setLoading(true);
-    setError("");
 
     try {
-      const userData = await apiService.login(formData.login, formData.senha);
+      await apiService.redefinirSenha(token, novaSenha);
 
-      setUserFromLogin(userData);
-      navigate("/dashboard");
+      setSucesso("Senha redefinida com sucesso! Redirecionando para o login...");
+
+      setTimeout(() => {
+        navigate("/login");
+      }, 2500);
     } catch (error) {
-      setError(error.message || "Erro ao fazer login. Tente novamente.");
+      setErro(error.message || "Erro ao redefinir senha.");
     } finally {
       setLoading(false);
     }
@@ -97,22 +104,11 @@ const Login = () => {
       <GlobalStyles
         styles={{
           "input:-webkit-autofill": {
-            WWebkitBoxShadow: "0 0 0 1000px rgba(30, 95, 179, 1) inset !important",
-            backgroundClip: "content-box !important",
+            WebkitBoxShadow: "0 0 0 1000px #1e5fb3 inset !important",
             WebkitTextFillColor: "#fff !important",
             caretColor: "#fff !important",
             borderRadius: "0 !important",
             transition: "background-color 9999s ease-in-out 0s !important",
-          },
-          "input:-webkit-autofill:hover": {
-            WebkitBoxShadow: "0 0 0 1000px rgba(30, 95, 179, 1) inset !important",
-            backgroundClip: "content-box !important",
-            WebkitTextFillColor: "#fff !important",
-          },
-          "input:-webkit-autofill:focus": {
-            WebkitBoxShadow: "0 0 0 1000px rgba(30, 95, 179, 1) inset !important",
-            backgroundClip: "content-box !important",
-            WebkitTextFillColor: "#fff !important",
           },
         }}
       />
@@ -154,45 +150,63 @@ const Login = () => {
             }}
           />
 
+          <CheckCircleOutlineIcon
+            sx={{
+              fontSize: 48,
+              color: "#fff",
+              mb: 1,
+            }}
+          />
+
           <Typography
             variant="h5"
             fontWeight={700}
             textAlign="center"
             sx={{ color: "#fff" }}
           >
-            Acesse sua conta
+            Redefinir senha
           </Typography>
 
           <Typography
             variant="body2"
             textAlign="center"
-            sx={{ mt: 0.5, mb: 3, color: "rgba(255,255,255,0.85)" }}
+            sx={{
+              mt: 0.5,
+              mb: 3,
+              color: "rgba(255,255,255,0.85)",
+            }}
           >
-            Informe suas credenciais para acessar o estoquePlan
+            Informe sua nova senha para recuperar o acesso ao estoquePlan
           </Typography>
 
-          {error && (
+          {erro && (
             <Alert severity="error" sx={{ mb: 2, width: "100%" }}>
-              {error}
+              {erro}
+            </Alert>
+          )}
+
+          {sucesso && (
+            <Alert severity="success" sx={{ mb: 2, width: "100%" }}>
+              {sucesso}
             </Alert>
           )}
 
           <Box component="form" onSubmit={handleSubmit} sx={{ width: "100%" }}>
             <TextField
-              label="E-mail"
-              name="login"
-              type="email"
-              value={formData.login}
-              onChange={handleInputChange}
+              label="Nova senha"
+              name="novaSenha"
+              type="password"
+              value={novaSenha}
+              onChange={(e) => setNovaSenha(e.target.value)}
               fullWidth
-              disabled={loading}
+              disabled={loading || !!sucesso}
               margin="normal"
               variant="outlined"
-              autoComplete="email"
+              autoComplete="new-password"
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <EmailOutlinedIcon sx={{ color: "#fff" }} />
+                    <LockOutlinedIcon sx={{ color: "#fff" }} />
                   </InputAdornment>
                 ),
               }}
@@ -200,16 +214,16 @@ const Login = () => {
             />
 
             <TextField
-              label="Senha"
-              name="senha"
+              label="Confirmar senha"
+              name="confirmarSenha"
               type="password"
-              value={formData.senha}
-              onChange={handleInputChange}
+              value={confirmarSenha}
+              onChange={(e) => setConfirmarSenha(e.target.value)}
               fullWidth
-              disabled={loading}
+              disabled={loading || !!sucesso}
               margin="normal"
               variant="outlined"
-              autoComplete="current-password"
+              autoComplete="new-password"
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -225,7 +239,7 @@ const Login = () => {
               fullWidth
               size="large"
               type="submit"
-              disabled={loading}
+              disabled={loading || !!sucesso}
               sx={{
                 mt: 3,
                 py: 1.4,
@@ -246,17 +260,17 @@ const Login = () => {
                     size={20}
                     sx={{ color: "#1976d2", mr: 1 }}
                   />
-                  Entrando...
+                  Redefinindo...
                 </>
               ) : (
-                "Entrar"
+                "Redefinir senha"
               )}
             </Button>
           </Box>
 
           <Typography
             variant="body2"
-            onClick={() => navigate("/esqueci-senha")}
+            onClick={() => navigate("/login")}
             sx={{
               mt: 3,
               cursor: "pointer",
@@ -267,7 +281,7 @@ const Login = () => {
               },
             }}
           >
-            Esqueceu sua senha?
+            Voltar para o login
           </Typography>
         </Paper>
       </Box>
@@ -275,4 +289,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default RedefinirSenha;

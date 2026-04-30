@@ -2,11 +2,16 @@ package com.estoqueplan.estoque_plan.dashboard.service;
 
 import com.estoqueplan.estoque_plan.dashboard.dto.DashboardComercialDTO;
 import com.estoqueplan.estoque_plan.dashboard.dto.DashboardEstoqueDTO;
+import com.estoqueplan.estoque_plan.dashboard.dto.DashboardFinanceiroDTO;
+import com.estoqueplan.estoque_plan.dashboard.dto.MovimentacaoResumoDTO;
 import com.estoqueplan.estoque_plan.dashboard.dto.ProdutoBaixoEstoqueDTO;
 import com.estoqueplan.estoque_plan.dashboard.dto.TopClienteDTO;
 import com.estoqueplan.estoque_plan.dashboard.dto.TopProdutoVendidoDTO;
 import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
+import com.estoqueplan.estoque_plan.financeiro.model.MovimentacaoCaixa;
 import com.estoqueplan.estoque_plan.model.Produto;
+import com.estoqueplan.estoque_plan.financeiro.repository.ParcelaFinanceiraRepository;
+import com.estoqueplan.estoque_plan.financeiro.repository.MovimentacaoCaixaRepository;
 import com.estoqueplan.estoque_plan.repository.ItemVendaRepository;
 import com.estoqueplan.estoque_plan.repository.ProdutoRepository;
 import com.estoqueplan.estoque_plan.repository.VendaRepository;
@@ -25,15 +30,21 @@ public class DashboardServiceImpl implements DashboardService {
     private final ProdutoRepository produtoRepository;
     private final VendaRepository vendaRepository;
     private final ItemVendaRepository itemVendaRepository;
+    private final ParcelaFinanceiraRepository parcelaFinanceiraRepository;
+    private final MovimentacaoCaixaRepository movimentacaoCaixaRepository;
 
     public DashboardServiceImpl(
             ProdutoRepository produtoRepository,
             VendaRepository vendaRepository,
-            ItemVendaRepository itemVendaRepository
+            ItemVendaRepository itemVendaRepository,
+            ParcelaFinanceiraRepository parcelaFinanceiraRepository,
+            MovimentacaoCaixaRepository movimentacaoCaixaRepository
     ) {
         this.produtoRepository = produtoRepository;
         this.vendaRepository = vendaRepository;
         this.itemVendaRepository = itemVendaRepository;
+        this.parcelaFinanceiraRepository = parcelaFinanceiraRepository;
+        this.movimentacaoCaixaRepository = movimentacaoCaixaRepository;
     }
 
     @Override
@@ -116,6 +127,57 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setTicketMedio(ticketMedio);
         dto.setTopProdutosVendidos(topProdutosVendidos);
         dto.setTopClientes(topClientes);
+
+        return dto;
+    }
+
+    @Override
+    public DashboardFinanceiroDTO obterIndicadoresFinanceiros(LocalDate inicio, LocalDate fim) {
+        validarPeriodo(inicio, fim);
+
+        LocalDate dataInicio = resolverInicio(inicio);
+        LocalDate dataFim = resolverFim(fim);
+
+        LocalDateTime inicioDateTime = dataInicio.atStartOfDay();
+        LocalDateTime fimDateTime = dataFim.atTime(LocalTime.MAX);
+
+        BigDecimal totalReceberAberto = parcelaFinanceiraRepository.sumReceberAberto();
+        BigDecimal totalPagarAberto = parcelaFinanceiraRepository.sumPagarAberto();
+        Long parcelasVencidas = parcelaFinanceiraRepository.countParcelasVencidas();
+        BigDecimal recebidoPeriodo = parcelaFinanceiraRepository.sumRecebidoPeriodo(dataInicio, dataFim);
+        BigDecimal pagoPeriodo = parcelaFinanceiraRepository.sumPagoPeriodo(dataInicio, dataFim);
+
+        List<MovimentacaoCaixa> ultimasMovimentacoesEntidade =
+                movimentacaoCaixaRepository.findTop5ByOrderByDataHoraDesc();
+
+        BigDecimal saldoAtualCaixa = ultimasMovimentacoesEntidade.stream()
+                .findFirst()
+                .map(MovimentacaoCaixa::getSaldoApos)
+                .orElse(BigDecimal.ZERO);
+
+        BigDecimal totalEntradasPeriodo = movimentacaoCaixaRepository.sumEntradasPeriodo(inicioDateTime, fimDateTime);
+        BigDecimal totalSaidasPeriodo = movimentacaoCaixaRepository.sumSaidasPeriodo(inicioDateTime, fimDateTime);
+
+        List<MovimentacaoResumoDTO> ultimasMovimentacoes = ultimasMovimentacoesEntidade.stream()
+                .map(m -> new MovimentacaoResumoDTO(
+                        m.getId(),
+                        m.getTipo().name(),
+                        m.getDescricao(),
+                        m.getDataHora(),
+                        m.getValor()
+                ))
+                .toList();
+
+        DashboardFinanceiroDTO dto = new DashboardFinanceiroDTO();
+        dto.setTotalReceberAberto(totalReceberAberto != null ? totalReceberAberto : BigDecimal.ZERO);
+        dto.setTotalPagarAberto(totalPagarAberto != null ? totalPagarAberto : BigDecimal.ZERO);
+        dto.setParcelasVencidas(parcelasVencidas != null ? parcelasVencidas : 0L);
+        dto.setRecebidoPeriodo(recebidoPeriodo != null ? recebidoPeriodo : BigDecimal.ZERO);
+        dto.setPagoPeriodo(pagoPeriodo != null ? pagoPeriodo : BigDecimal.ZERO);
+        dto.setSaldoAtualCaixa(saldoAtualCaixa);
+        dto.setTotalEntradasPeriodo(totalEntradasPeriodo != null ? totalEntradasPeriodo : BigDecimal.ZERO);
+        dto.setTotalSaidasPeriodo(totalSaidasPeriodo != null ? totalSaidasPeriodo : BigDecimal.ZERO);
+        dto.setUltimasMovimentacoes(ultimasMovimentacoes);
 
         return dto;
     }

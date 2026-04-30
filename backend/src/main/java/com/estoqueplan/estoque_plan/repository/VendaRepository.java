@@ -2,7 +2,6 @@ package com.estoqueplan.estoque_plan.repository;
 
 import com.estoqueplan.estoque_plan.dashboard.dto.TopClienteDTO;
 import com.estoqueplan.estoque_plan.model.Venda;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;

@@ -9,6 +9,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.estoqueplan.estoque_plan.dto.EsqueciSenhaDTO;
+import com.estoqueplan.estoque_plan.dto.RedefinirSenhaDTO;
 
 @RestController
 @RequestMapping("/auth")
@@ -61,5 +63,21 @@ public class AuthController {
     static class JwtResponse {
         public String token;
         public JwtResponse(String token) { this.token = token; }
+    }
+
+    @PostMapping("/esqueci-senha")
+    public ResponseEntity<?> esqueciSenha(@RequestBody EsqueciSenhaDTO dto) {
+        usuarioService.solicitarRedefinicaoSenha(dto.getEmail());
+
+        return ResponseEntity.ok(
+                "Se o e-mail informado estiver cadastrado, enviaremos as instruções para redefinição de senha."
+        );
+    }
+
+    @PostMapping("/redefinir-senha")
+    public ResponseEntity<?> redefinirSenha(@RequestBody RedefinirSenhaDTO dto) {
+        usuarioService.redefinirSenha(dto.getToken(), dto.getNovaSenha());
+
+        return ResponseEntity.ok("Senha redefinida com sucesso.");
     }
 }

@@ -1,5 +1,6 @@
 package com.estoqueplan.estoque_plan.financeiro.service;
 
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.financeiro.model.MovimentacaoCaixa;
 import com.estoqueplan.estoque_plan.financeiro.model.enums.TipoMovimentacao;
 import com.estoqueplan.estoque_plan.financeiro.repository.MovimentacaoCaixaRepository;
@@ -35,7 +36,7 @@ public class MovimentacaoCaixaService {
 
     private BigDecimal calcularSaldoNovo(BigDecimal saldoAnterior, TipoMovimentacao tipo, BigDecimal valor) {
         if (valor == null) {
-            throw new IllegalArgumentException("Valor da movimentação não pode ser nulo.");
+            throw new RegraNegocioException("Valor da movimentação não pode ser nulo.");
         }
 
         return (tipo == TipoMovimentacao.ENTRADA)

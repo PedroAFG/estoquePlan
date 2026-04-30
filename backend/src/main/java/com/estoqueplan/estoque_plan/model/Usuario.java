@@ -35,6 +35,10 @@ public class Usuario {
     @Enumerated(EnumType.STRING)
     private Permissao permissao;
 
+    private String resetPasswordToken;
+
+    private LocalDateTime resetPasswordTokenExpiraEm;
+
     //Enums para permissões
     public enum Permissao {
         ADMINISTRADOR,

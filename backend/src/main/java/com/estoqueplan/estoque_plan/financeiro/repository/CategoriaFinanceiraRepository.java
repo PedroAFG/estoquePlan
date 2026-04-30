@@ -10,5 +10,6 @@ public interface CategoriaFinanceiraRepository extends JpaRepository<CategoriaFi
 
     List<CategoriaFinanceira> findByAtivoTrue();
     Optional<CategoriaFinanceira> findByIdAndAtivoTrue(Long id);
+    Optional<CategoriaFinanceira> findByNomeIgnoreCaseAndAtivoTrue(String nome);
 
 }

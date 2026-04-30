@@ -40,7 +40,7 @@ export default function Topbar({
     } finally {
       localStorage.removeItem("userData");
       localStorage.removeItem("token");
-      navigate("/", { replace: true });
+      navigate("/login", { replace: true });
     }
   };
 

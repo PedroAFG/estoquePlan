@@ -5,6 +5,7 @@ import apiService from "../services/api";
 import {
   Grid,
   Paper,
+  Checkbox,
   Typography,
   Stack,
   Button,
@@ -12,6 +13,7 @@ import {
   Alert,
   TextField,
   FormControl,
+  FormControlLabel,
   FormHelperText,
   InputLabel,
   Select,
@@ -36,6 +38,8 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import PaymentsIcon from "@mui/icons-material/Payments";
+import BlockIcon from "@mui/icons-material/Block";
+import dayjs from "dayjs";
 
 function money(v) {
   return Number(v || 0).toLocaleString("pt-BR", {
@@ -88,8 +92,9 @@ const emptyCreate = {
   valorTotal: "",
   categoriaId: "",
   formaPagamentoId: "",
+  tipoPagamento: "AVISTA",
   numeroParcelas: 1,
-  primeiroVencimento: "",
+  primeiroVencimento: dayjs().format("YYYY-MM-DD"),
   intervaloDias: 30,
 };
 
@@ -113,8 +118,9 @@ const emptyFilters = {
   tipo: "TODOS",
   status: "TODOS",
   categoriaId: "",
-  dataInicial: "",
-  dataFinal: "",
+  periodo: "month",
+  dataInicial: dayjs().startOf("month").format("YYYY-MM-DD"),
+  dataFinal: dayjs().format("YYYY-MM-DD"),
 };
 
 export default function FinanceiroTitulos() {
@@ -145,7 +151,49 @@ export default function FinanceiroTitulos() {
   const [baixaTarget, setBaixaTarget] = useState(null);
   const [formBaixa, setFormBaixa] = useState(emptyBaixa);
 
+  const [openConfirmCancel, setOpenConfirmCancel] = useState(false);
+  const [tituloToCancel, setTituloToCancel] = useState(null);
+
+  const [openImport, setOpenImport] = useState(false);
+
   const total = titulos.length;
+
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const carregarUsuarioLogado = async () => {
+      try {
+        const me = await apiService.getMe();
+        setIsAdmin(me?.permissao === "ADMINISTRADOR");
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+
+    carregarUsuarioLogado();
+  }, []);
+
+  const handleTipoPagamentoChange = (tipoPagamento) => {
+    const hoje = dayjs().format("YYYY-MM-DD");
+
+    setFormCreate((prev) => ({
+      ...prev,
+      tipoPagamento,
+      numeroParcelas: tipoPagamento === "AVISTA" ? 1 : prev.numeroParcelas || 2,
+      primeiroVencimento:
+        tipoPagamento === "AVISTA" ? hoje : prev.primeiroVencimento || hoje,
+      intervaloDias: tipoPagamento === "AVISTA" ? 30 : prev.intervaloDias || 30,
+    }));
+
+    setCreateErrors((prev) => ({
+      ...prev,
+      numeroParcelas: "",
+      primeiroVencimento: "",
+      intervaloDias: "",
+    }));
+
+    setCreateError("");
+  };
 
   const pageContentSx = {
     width: "100%",
@@ -445,6 +493,211 @@ export default function FinanceiroTitulos() {
     }
   };
 
+  const canCancelarTitulo = (titulo) => {
+    return titulo?.status !== "CANCELADO" && titulo?.status !== "PAGO_RECEBIDO";
+  };
+
+  const handleCancelarTitulo = async (titulo) => {
+    if (!titulo?.id) return;
+
+    const confirmou = window.confirm(
+      `Deseja cancelar o título #${titulo.id}?\n\nAs parcelas pendentes também serão canceladas.`
+    );
+
+    if (!confirmou) return;
+
+    try {
+      setPageError("");
+      setPageSuccess("");
+      setDetailError("");
+      setLoading(true);
+
+      const atualizado = await apiService.cancelarTituloFinanceiro(titulo.id);
+
+      setTitulos((prev) =>
+        (prev || []).map((t) => (t.id === titulo.id ? atualizado : t))
+      );
+
+      if (detail?.id === titulo.id) {
+        setDetail(atualizado);
+      }
+
+      setPageSuccess("Título cancelado com sucesso.");
+    } catch (e) {
+      const mensagem =
+        e?.message ||
+        "Erro ao cancelar título. Verifique se ele está vinculado a uma venda.";
+
+      if (openDetail) {
+        setDetailError(mensagem);
+      } else {
+        setPageError(mensagem);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmarCancelamento = async () => {
+    if (!tituloToCancel) return;
+
+    try {
+      setLoading(true);
+
+      const atualizado = await apiService.cancelarTituloFinanceiro(
+        tituloToCancel.id
+      );
+
+      setTitulos((prev) =>
+        prev.map((t) => (t.id === atualizado.id ? atualizado : t))
+      );
+
+      if (detail?.id === atualizado.id) {
+        setDetail(atualizado);
+      }
+
+      setPageSuccess("Título cancelado com sucesso.");
+    } catch (e) {
+      setPageError(
+        e?.message ||
+        "Não foi possível cancelar o título (possivelmente vinculado a venda)."
+      );
+    } finally {
+      setLoading(false);
+      setOpenConfirmCancel(false);
+      setTituloToCancel(null);
+    }
+  };
+
+  const PERIOD_OPTIONS = [
+    { value: "today", label: "Hoje" },
+    { value: "yesterday", label: "Ontem" },
+    { value: "last7", label: "Últimos 7 dias" },
+    { value: "month", label: "Mês atual" },
+    { value: "last30", label: "Últimos 30 dias" },
+    { value: "custom", label: "Período personalizado" },
+  ];
+
+  function resolvePeriodDates(periodKey, customRange) {
+    const today = dayjs();
+
+    switch (periodKey) {
+      case "today":
+        return {
+          dataInicial: today.format("YYYY-MM-DD"),
+          dataFinal: today.format("YYYY-MM-DD"),
+        };
+
+      case "yesterday": {
+        const yesterday = today.subtract(1, "day");
+        return {
+          dataInicial: yesterday.format("YYYY-MM-DD"),
+          dataFinal: yesterday.format("YYYY-MM-DD"),
+        };
+      }
+
+      case "last7":
+        return {
+          dataInicial: today.subtract(6, "day").format("YYYY-MM-DD"),
+          dataFinal: today.format("YYYY-MM-DD"),
+        };
+
+      case "month":
+        return {
+          dataInicial: today.startOf("month").format("YYYY-MM-DD"),
+          dataFinal: today.format("YYYY-MM-DD"),
+        };
+
+      case "last30":
+        return {
+          dataInicial: today.subtract(29, "day").format("YYYY-MM-DD"),
+          dataFinal: today.format("YYYY-MM-DD"),
+        };
+
+      case "custom":
+        return {
+          dataInicial: customRange.dataInicial || "",
+          dataFinal: customRange.dataFinal || "",
+        };
+
+      default:
+        return {
+          dataInicial: "",
+          dataFinal: "",
+        };
+    }
+  }
+
+  const baixarArquivo = (blob, nomeArquivo) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleExportarXlsx = async () => {
+    try {
+      setPageError("");
+      setPageSuccess("");
+      setLoading(true);
+
+      const blob = await apiService.exportarTitulosXlsx();
+      baixarArquivo(blob, "titulos_financeiros.xlsx");
+
+      setPageSuccess("Títulos exportados em XLSX com sucesso.");
+    } catch (e) {
+      setPageError(e?.message || "Erro ao exportar XLSX.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportarPdf = async () => {
+    try {
+      setPageError("");
+      setPageSuccess("");
+      setLoading(true);
+
+      const blob = await apiService.exportarTitulosPdf();
+      baixarArquivo(blob, "titulos_financeiros.pdf");
+
+      setPageSuccess("Títulos exportados em PDF com sucesso.");
+    } catch (e) {
+      setPageError(e?.message || "Erro ao exportar PDF.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImportarXlsx = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setPageError("");
+      setPageSuccess("");
+      setLoading(true);
+
+      const msg = await apiService.importarTitulosXlsx(file);
+
+      await loadData();
+
+      setPageSuccess(msg || "Títulos importados com sucesso.");
+      setOpenImport(false);
+    } catch (e) {
+      setPageError(e?.message || "Erro ao importar títulos.");
+    } finally {
+      setLoading(false);
+      event.target.value = "";
+    }
+  };
+
   return (
     <AppLayout title="Títulos">
       <Grid container spacing={2}>
@@ -487,9 +740,17 @@ export default function FinanceiroTitulos() {
                     >
                       Novo título
                     </Button>
-                    <Button variant="contained">Importar</Button>
-                    <Button variant="contained">Exportar XLSX</Button>
-                    <Button variant="contained">Exportar PDF</Button>
+                    <Button variant="contained" onClick={() => setOpenImport(true)}>
+                      Importar
+                    </Button>
+
+                    <Button variant="contained" onClick={handleExportarXlsx}>
+                      Exportar XLSX
+                    </Button>
+
+                    <Button variant="contained" onClick={handleExportarPdf}>
+                      Exportar PDF
+                    </Button>
                   </Stack>
                 </Grid>
               </Grid>
@@ -502,7 +763,10 @@ export default function FinanceiroTitulos() {
                   gridTemplateColumns: {
                     xs: "1fr",
                     md: "1fr 1fr",
-                    xl: "minmax(220px,1.5fr) minmax(150px,0.9fr) minmax(150px,0.9fr) minmax(220px,1.2fr) minmax(160px,1fr) minmax(160px,1fr) auto",
+                    xl:
+                      filters.periodo === "custom"
+                        ? "minmax(220px,1.4fr) minmax(140px,0.8fr) minmax(140px,0.8fr) minmax(200px,1.1fr) minmax(190px,1fr) minmax(150px,0.8fr) minmax(150px,0.8fr) auto"
+                        : "minmax(220px,1.5fr) minmax(140px,0.8fr) minmax(140px,0.8fr) minmax(220px,1.2fr) minmax(190px,1fr) auto",
                   },
                   gap: 2,
                   alignItems: "center",
@@ -560,54 +824,91 @@ export default function FinanceiroTitulos() {
                   </Select>
                 </FormControl>
 
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Categoria financeira</InputLabel>
+                    <Select
+                      label="Categoria financeira"
+                      value={filters.categoriaId}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          categoriaId: e.target.value,
+                        }))
+                      }
+                    >
+                      <MenuItem value="">Todas</MenuItem>
+                      {categorias.map((c) => (
+                        <MenuItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
                 <FormControl fullWidth>
-                  <InputLabel>Categoria financeira</InputLabel>
+                  <InputLabel>Período</InputLabel>
                   <Select
-                    label="Categoria financeira"
-                    value={filters.categoriaId}
-                    onChange={(e) =>
-                      setFilters((prev) => ({
-                        ...prev,
-                        categoriaId: e.target.value,
-                      }))
-                    }
+                    label="Período"
+                    value={filters.periodo}
+                    onChange={(e) => {
+                      const novoPeriodo = e.target.value;
+
+                      setFilters((prev) => {
+                        const datas = resolvePeriodDates(novoPeriodo, {
+                          dataInicial: prev.dataInicial,
+                          dataFinal: prev.dataFinal,
+                        });
+
+                        return {
+                          ...prev,
+                          periodo: novoPeriodo,
+                          dataInicial: datas.dataInicial,
+                          dataFinal: datas.dataFinal,
+                        };
+                      });
+                    }}
                   >
-                    <MenuItem value="">Todas</MenuItem>
-                    {categorias.map((c) => (
-                      <MenuItem key={c.id} value={c.id}>
-                        {c.nome}
+                    {PERIOD_OPTIONS.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
                       </MenuItem>
                     ))}
                   </Select>
                 </FormControl>
 
-                <TextField
-                  label="Data inicial"
-                  type="date"
-                  value={filters.dataInicial}
-                  onChange={(e) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      dataInicial: e.target.value,
-                    }))
-                  }
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                />
+                {filters.periodo === "custom" && (
+                  <>
+                    <TextField
+                      label="Data inicial"
+                      type="date"
+                      value={filters.dataInicial}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          dataInicial: e.target.value,
+                        }))
+                      }
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
 
-                <TextField
-                  label="Data final"
-                  type="date"
-                  value={filters.dataFinal}
-                  onChange={(e) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      dataFinal: e.target.value,
-                    }))
-                  }
-                  InputLabelProps={{ shrink: true }}
-                  fullWidth
-                />
+                    <TextField
+                      label="Data final"
+                      type="date"
+                      value={filters.dataFinal}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          dataFinal: e.target.value,
+                        }))
+                      }
+                      InputLabelProps={{ shrink: true }}
+                      fullWidth
+                    />
+                  </>
+                )}
 
                 <Button
                   variant="text"
@@ -718,9 +1019,42 @@ export default function FinanceiroTitulos() {
                             {totalP ? `${pagas} de ${totalP}` : "-"}
                           </TableCell>
                           <TableCell align="center">
-                            <IconButton onClick={() => openDetalhes(t.id)}>
-                              <VisibilityIcon />
-                            </IconButton>
+                            <Tooltip title="Ver detalhes">
+                              <IconButton onClick={() => openDetalhes(t.id)}>
+                                <VisibilityIcon />
+                              </IconButton>
+                            </Tooltip>
+
+                            {isAdmin ? (
+                              <Tooltip
+                                title={
+                                  canCancelarTitulo(t)
+                                    ? "Cancelar título"
+                                    : "Título não disponível para cancelamento"
+                                }
+                              >
+                                <span>
+                                  <IconButton
+                                    color="warning"
+                                    disabled={!canCancelarTitulo(t)}
+                                    onClick={() => {
+                                      setTituloToCancel(t);
+                                      setOpenConfirmCancel(true);
+                                    }}
+                                  >
+                                    <BlockIcon />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title="Cancelamento disponível apenas para administradores">
+                                <span>
+                                  <IconButton disabled>
+                                    <BlockIcon />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -814,13 +1148,19 @@ export default function FinanceiroTitulos() {
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <FormControl fullWidth error={!!createErrors.categoriaId}>
+              <Grid item xs={12} md={6}>
+                <FormControl
+                  fullWidth
+                  size="medium"
+                  error={!!createErrors.categoriaId}
+                  sx={{ width: "100%", minWidth: 280 }}
+                >
                   <InputLabel>Categoria financeira</InputLabel>
                   <Select
                     label="Categoria financeira"
                     value={formCreate.categoriaId}
                     onChange={(e) => updateCreateField("categoriaId", e.target.value)}
+                    sx={{ width: "100%" }}
                   >
                     {categoriasDoTipo.map((c) => (
                       <MenuItem key={c.id} value={c.id}>
@@ -832,15 +1172,19 @@ export default function FinanceiroTitulos() {
                 </FormControl>
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <FormControl fullWidth error={!!createErrors.formaPagamentoId}>
+              <Grid item xs={12} md={6}>
+                <FormControl
+                  fullWidth
+                  size="medium"
+                  error={!!createErrors.formaPagamentoId}
+                  sx={{ width: "100%", minWidth: 280 }}
+                >
                   <InputLabel>Forma de pagamento</InputLabel>
                   <Select
                     label="Forma de pagamento"
                     value={formCreate.formaPagamentoId}
-                    onChange={(e) =>
-                      updateCreateField("formaPagamentoId", e.target.value)
-                    }
+                    onChange={(e) => updateCreateField("formaPagamentoId", e.target.value)}
+                    sx={{ width: "100%" }}
                   >
                     {(formasPagamento || [])
                       .filter((fp) => (fp.ativo ?? true) === true)
@@ -861,6 +1205,28 @@ export default function FinanceiroTitulos() {
               Parcelamento
             </Typography>
 
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formCreate.tipoPagamento === "AVISTA"}
+                    onChange={() => handleTipoPagamentoChange("AVISTA")}
+                  />
+                }
+                label="Pagamento à vista"
+              />
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formCreate.tipoPagamento === "PARCELADO"}
+                    onChange={() => handleTipoPagamentoChange("PARCELADO")}
+                  />
+                }
+                label="Pagamento parcelado"
+              />
+            </Stack>
+
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
                 <TextField
@@ -868,12 +1234,11 @@ export default function FinanceiroTitulos() {
                   type="number"
                   inputProps={{ min: 1, step: 1 }}
                   value={formCreate.numeroParcelas}
-                  onChange={(e) =>
-                    updateCreateField("numeroParcelas", e.target.value)
-                  }
+                  onChange={(e) => updateCreateField("numeroParcelas", e.target.value)}
                   error={!!createErrors.numeroParcelas}
                   helperText={createErrors.numeroParcelas}
                   fullWidth
+                  disabled={formCreate.tipoPagamento === "AVISTA"}
                 />
               </Grid>
 
@@ -882,13 +1247,12 @@ export default function FinanceiroTitulos() {
                   label="1º vencimento"
                   type="date"
                   value={formCreate.primeiroVencimento}
-                  onChange={(e) =>
-                    updateCreateField("primeiroVencimento", e.target.value)
-                  }
+                  onChange={(e) => updateCreateField("primeiroVencimento", e.target.value)}
                   error={!!createErrors.primeiroVencimento}
                   helperText={createErrors.primeiroVencimento}
                   fullWidth
                   InputLabelProps={{ shrink: true }}
+                  disabled={formCreate.tipoPagamento === "AVISTA"}
                 />
               </Grid>
 
@@ -898,12 +1262,11 @@ export default function FinanceiroTitulos() {
                   type="number"
                   inputProps={{ min: 1, step: 1 }}
                   value={formCreate.intervaloDias}
-                  onChange={(e) =>
-                    updateCreateField("intervaloDias", e.target.value)
-                  }
+                  onChange={(e) => updateCreateField("intervaloDias", e.target.value)}
                   error={!!createErrors.intervaloDias}
                   helperText={createErrors.intervaloDias}
                   fullWidth
+                  disabled={formCreate.tipoPagamento === "AVISTA"}
                 />
               </Grid>
             </Grid>
@@ -1086,7 +1449,32 @@ export default function FinanceiroTitulos() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={closeDetalhes}>Fechar</Button>
+          {isAdmin ? (
+            <Button
+              color="warning"
+              variant="outlined"
+              startIcon={<BlockIcon />}
+              disabled={!canCancelarTitulo(detail) || loading}
+              onClick={() => {
+                setTituloToCancel(detail);
+                setOpenConfirmCancel(true);
+              }}
+            >
+              Cancelar título
+            </Button>
+          ) : (
+            <Tooltip title="Cancelamento disponível apenas para administradores">
+              <span>
+                <Button
+                  variant="outlined"
+                  startIcon={<BlockIcon />}
+                  disabled
+                >
+                  Cancelar título
+                </Button>
+              </span>
+            </Tooltip>
+          )}
         </DialogActions>
       </Dialog>
 
@@ -1098,48 +1486,11 @@ export default function FinanceiroTitulos() {
         PaperProps={{ sx: { borderRadius: 3 } }}
       >
         <DialogTitle>Baixar parcela</DialogTitle>
+
         <DialogContent dividers>
-          <Stack spacing={2} mt={1}>
-            {baixaError && (
-              <Alert severity="error" onClose={() => setBaixaError("")}>
-                {baixaError}
-              </Alert>
-            )}
-
-            <TextField
-              label="Data da baixa"
-              type="date"
-              value={formBaixa.dataBaixa}
-              onChange={(e) =>
-                setFormBaixa((f) => ({
-                  ...f,
-                  dataBaixa: e.target.value,
-                }))
-              }
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-            />
-
-            <TextField
-              label="Descrição (opcional)"
-              value={formBaixa.descricao}
-              onChange={(e) =>
-                setFormBaixa((f) => ({
-                  ...f,
-                  descricao: e.target.value,
-                }))
-              }
-              fullWidth
-            />
-
-            <Box>
-              <Alert severity="info">
-                Ao baixar, o sistema deve criar uma movimentação no caixa e
-                atualizar saldo/status.
-              </Alert>
-            </Box>
-          </Stack>
+          {/* conteúdo da baixa */}
         </DialogContent>
+
         <DialogActions>
           <Button onClick={closeBaixar} disabled={loading}>
             Cancelar
@@ -1147,6 +1498,98 @@ export default function FinanceiroTitulos() {
           <Button variant="contained" onClick={handleBaixar} disabled={loading}>
             Confirmar baixa
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={openConfirmCancel}
+        onClose={() => {
+          setOpenConfirmCancel(false);
+          setTituloToCancel(null);
+        }}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+            Cancelar título
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={2}>
+            <Typography>
+              Tem certeza que deseja cancelar o título{" "}
+              <strong>{tituloToCancel?.id}</strong>?
+            </Typography>
+
+            <Alert severity="warning">
+              Essa ação irá cancelar todas as parcelas pendentes.
+            </Alert>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setOpenConfirmCancel(false);
+              setTituloToCancel(null);
+            }}
+          >
+            Voltar
+          </Button>
+
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={confirmarCancelamento}
+            disabled={loading}
+          >
+            Confirmar cancelamento
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={openImport}
+        onClose={() => setOpenImport(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Importar títulos</DialogTitle>
+
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Alert severity="info">
+              Utilize o modelo padrão. Categoria e forma de pagamento devem existir no sistema.
+            </Alert>
+
+            <Button
+              variant="contained"
+              onClick={() => {
+                const link = document.createElement("a");
+                link.href = "/modelos/titulos_modelo.xlsx";
+                link.download = "modelo_importacao_titulos.xlsx";
+                link.click();
+              }}
+            >
+              Baixar modelo XLSX
+            </Button>
+
+            <Button variant="contained" component="label">
+              Selecionar arquivo XLSX
+              <input
+                type="file"
+                hidden
+                accept=".xlsx"
+                onChange={handleImportarXlsx}
+              />
+            </Button>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setOpenImport(false)}>Fechar</Button>
         </DialogActions>
       </Dialog>
     </AppLayout>

@@ -52,6 +52,42 @@ class ApiService {
     }
   }
 
+  async solicitarRedefinicaoSenha(email) {
+    const response = await fetch(`${this.baseURL}/auth/esqueci-senha`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Erro ao solicitar redefinição de senha");
+    }
+
+    return await response.text();
+  }
+
+  async redefinirSenha(token, novaSenha) {
+    const response = await fetch(`${this.baseURL}/auth/redefinir-senha`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        token,
+        novaSenha,
+      }),
+    });
+
+    if (!response.ok) {
+      const mensagem = await response.text();
+      throw new Error(mensagem || "Erro ao redefinir senha");
+    }
+
+    return await response.text();
+  }
+
   // Método para buscar dados do usuário logado
   async getMe() {
     try {
@@ -150,6 +186,65 @@ class ApiService {
     } catch (error) {
       throw error;
     }
+  }
+
+  // Ativar produto
+  async ativarProduto(id) {
+    try {
+      const response = await this.authenticatedRequest(
+        `${API_CONFIG.ENDPOINTS.PRODUTO}/${id}/ativar`,
+        {
+          method: "PATCH",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Erro ao reativar produto");
+      }
+
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async exportarProdutosXlsx({ incluirInativos = false } = {}) {
+    const query = incluirInativos ? "?incluirInativos=true" : "";
+
+    const response = await this.authenticatedRequest(
+      `/produtos/exportar/xlsx${query}`,
+      {
+        method: "GET",
+      }
+    );
+
+    return await response.blob();
+  }
+
+  async exportarProdutosPdf({ incluirInativos = false } = {}) {
+    const query = incluirInativos ? "?incluirInativos=true" : "";
+
+    const response = await this.authenticatedRequest(
+      `/produtos/exportar/pdf${query}`,
+      {
+        method: "GET",
+      }
+    );
+
+    return await response.blob();
+  }
+
+  async importarProdutosXlsx(file) {
+    const formData = new FormData();
+    formData.append("arquivo", file);
+
+    const response = await this.authenticatedRequest("/produtos/importar/xlsx", {
+      method: "POST",
+      headers: {},
+      body: formData,
+    });
+
+    return await response.text();
   }
 
 
@@ -274,6 +369,22 @@ class ApiService {
     return true; // PATCH pode não vir com body
   }
 
+  async exportarVendasXlsx() {
+    const response = await this.authenticatedRequest("/vendas/exportar/xlsx", {
+      method: "GET",
+    });
+
+    return await response.blob();
+  }
+
+  async exportarVendasPdf() {
+    const response = await this.authenticatedRequest("/vendas/exportar/pdf", {
+      method: "GET",
+    });
+
+    return await response.blob();
+  }
+
   // Método para buscar clientes
   async getClientes() {
     try {
@@ -363,6 +474,53 @@ class ApiService {
     });
     if (!response.ok) throw new Error('Erro ao criar título financeiro');
     return await response.json();
+  }
+
+  async cancelarTituloFinanceiro(id) {
+    const response = await this.authenticatedRequest(
+      `/financeiro/titulos/${id}/cancelar`,
+      {
+        method: "PATCH",
+      }
+    );
+
+    if (!response.ok) throw new Error("Erro ao cancelar título financeiro");
+
+    return await response.json();
+  }
+
+  async exportarTitulosXlsx() {
+    const response = await this.authenticatedRequest(
+      `/financeiro/titulos/exportar/xlsx`,
+      { method: "GET" }
+    );
+
+    return await response.blob();
+  }
+
+  async exportarTitulosPdf() {
+    const response = await this.authenticatedRequest(
+      `/financeiro/titulos/exportar/pdf`,
+      { method: "GET" }
+    );
+
+    return await response.blob();
+  }
+
+  async importarTitulosXlsx(file) {
+    const formData = new FormData();
+    formData.append("arquivo", file);
+
+    const response = await this.authenticatedRequest(
+      `/financeiro/titulos/importar/xlsx`,
+      {
+        method: "POST",
+        headers: {},
+        body: formData,
+      }
+    );
+
+    return await response.text();
   }
 
   // ======================
@@ -675,6 +833,45 @@ class ApiService {
     } catch (error) {
       throw error;
     }
+  }
+
+  // ======================
+  // DASHBOARD
+  // ======================
+  async getDashboardEstoque({ inicio, fim } = {}) {
+    const params = new URLSearchParams();
+    if (inicio) params.set("inicio", inicio);
+    if (fim) params.set("fim", fim);
+
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const response = await this.authenticatedRequest(`/dashboard/estoque${query}`);
+
+    if (!response.ok) throw new Error("Erro ao buscar indicadores de estoque");
+    return await response.json();
+  }
+
+  async getDashboardComercial({ inicio, fim } = {}) {
+    const params = new URLSearchParams();
+    if (inicio) params.set("inicio", inicio);
+    if (fim) params.set("fim", fim);
+
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const response = await this.authenticatedRequest(`/dashboard/comercial${query}`);
+
+    if (!response.ok) throw new Error("Erro ao buscar indicadores comerciais");
+    return await response.json();
+  }
+
+  async getDashboardFinanceiro({ inicio, fim } = {}) {
+    const params = new URLSearchParams();
+    if (inicio) params.set("inicio", inicio);
+    if (fim) params.set("fim", fim);
+
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const response = await this.authenticatedRequest(`/dashboard/financeiro${query}`);
+
+    if (!response.ok) throw new Error("Erro ao buscar indicadores financeiros");
+    return await response.json();
   }
 
   // Método para lidar com erro 401

@@ -1,5 +1,7 @@
 package com.estoqueplan.estoque_plan.financeiro.service;
 
+import com.estoqueplan.estoque_plan.exception.RecursoNaoEncontradoException;
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.financeiro.dto.BaixaParcelaDTO;
 import com.estoqueplan.estoque_plan.financeiro.model.MovimentacaoCaixa;
 import com.estoqueplan.estoque_plan.financeiro.model.ParcelaFinanceira;
@@ -30,21 +32,21 @@ public class ParcelaFinanceiraService {
     @Transactional
     public ParcelaFinanceira baixarParcela(Long parcelaId, BaixaParcelaDTO dto) {
         ParcelaFinanceira parcela = parcelaFinanceiraRepository.findById(parcelaId)
-                .orElseThrow(() -> new RuntimeException("Parcela não encontrada: " + parcelaId));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Parcela não encontrada: " + parcelaId));
 
         if (parcela.getStatus() == StatusTitulo.PAGO_RECEBIDO) {
-            throw new RuntimeException("Esta parcela já está baixada (PAGO/RECEBIDO).");
+            throw new RegraNegocioException("Esta parcela já está baixada (PAGO/RECEBIDO).");
         }
         if (parcela.getStatus() == StatusTitulo.CANCELADO) {
-            throw new RuntimeException("Não é possível baixar uma parcela CANCELADA.");
+            throw new RegraNegocioException("Não é possível baixar uma parcela CANCELADA.");
         }
         if (parcela.getValor() == null) {
-            throw new RuntimeException("Parcela sem valor. Verifique o cadastro.");
+            throw new RegraNegocioException("Parcela sem valor. Verifique o cadastro.");
         }
 
         TituloFinanceiro titulo = parcela.getTituloFinanceiro();
         if (titulo == null) {
-            throw new RuntimeException("Parcela sem vínculo com TítuloFinanceiro.");
+            throw new RegraNegocioException("Parcela sem vínculo com TítuloFinanceiro.");
         }
 
         TipoMovimentacao tipoMov = (titulo.getTipo() == TipoTitulo.A_RECEBER)

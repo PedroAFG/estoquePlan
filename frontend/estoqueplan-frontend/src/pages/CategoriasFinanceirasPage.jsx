@@ -501,9 +501,17 @@ export default function CategoriasFinanceirasPage() {
               value={form.nome}
               onChange={(e) => updateFormField("nome", e.target.value)}
               error={!!formErrors.nome}
-              helperText={formErrors.nome}
+              inputProps={{ maxLength: 100 }}
               fullWidth
               autoFocus
+              helperText={
+                <Box display="flex" justifyContent="space-between" width="100%">
+                  <span style={{ color: formErrors.nome ? "#d32f2f" : undefined }}>
+                    {formErrors.nome || "Obrigatório"}
+                  </span>
+                  <span>{form.nome.length}/100</span>
+                </Box>
+              }
             />
 
             <FormControl fullWidth error={!!formErrors.tipo}>

@@ -2,6 +2,8 @@ package com.estoqueplan.estoque_plan.service;
 
 import com.estoqueplan.estoque_plan.dto.ItemVendaDTO;
 import com.estoqueplan.estoque_plan.dto.VendaDTO;
+import com.estoqueplan.estoque_plan.exception.RecursoNaoEncontradoException;
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.financeiro.repository.TituloFinanceiroRepository;
 import com.estoqueplan.estoque_plan.financeiro.service.TituloFinanceiroService;
 import com.estoqueplan.estoque_plan.model.ItemVenda;
@@ -13,7 +15,6 @@ import com.estoqueplan.estoque_plan.repository.VendaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.estoqueplan.estoque_plan.financeiro.model.TituloFinanceiro;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,23 +43,23 @@ public class VendaService {
 
     private void validarEstoque(Produto produto, Integer quantidade) {
         if (produto == null) {
-            throw new RuntimeException("Produto não encontrado.");
+            throw new RecursoNaoEncontradoException("Produto não encontrado.");
         }
 
         if (!produto.isAtivo()) {
-            throw new RuntimeException("O produto " + produto.getDescricao() + " está inativo.");
+            throw new RegraNegocioException("O produto " + produto.getDescricao() + " está inativo.");
         }
 
         if (quantidade == null || quantidade <= 0) {
-            throw new RuntimeException("Quantidade deve ser maior que zero.");
+            throw new RegraNegocioException("Quantidade deve ser maior que zero.");
         }
 
         if (produto.getQuantidadeDisponivel() == null || produto.getQuantidadeDisponivel() <= 0) {
-            throw new RuntimeException("O produto " + produto.getDescricao() + " está sem estoque.");
+            throw new RegraNegocioException("O produto " + produto.getDescricao() + " está sem estoque.");
         }
 
         if (produto.getQuantidadeDisponivel() < quantidade) {
-            throw new RuntimeException(
+            throw new RegraNegocioException(
                     "Estoque insuficiente para o produto " + produto.getDescricao() +
                             ". Disponível: " + produto.getQuantidadeDisponivel() +
                             ", solicitado: " + quantidade
@@ -85,7 +86,7 @@ public class VendaService {
 
         if (vendaDTO.getClienteId() != null) {
             venda.setCliente(clienteService.encontrarPorId(vendaDTO.getClienteId())
-                    .orElseThrow(() -> new RuntimeException("Cliente não encontrado")));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado")));
         }
 
         venda.setRua(vendaDTO.getRua());
@@ -102,19 +103,19 @@ public class VendaService {
 
         for (ItemVendaDTO itemDTO : vendaDTO.getItens()) {
             if (itemDTO.getProdutoId() == null) {
-                throw new RuntimeException("ProdutoId do item é obrigatório.");
+                throw new RegraNegocioException("ProdutoId do item é obrigatório.");
             }
 
             if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade() <= 0) {
-                throw new RuntimeException("Quantidade do item deve ser maior que zero.");
+                throw new RegraNegocioException("Quantidade do item deve ser maior que zero.");
             }
 
             if (itemDTO.getPrecoUnitario() == null || itemDTO.getPrecoUnitario().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new RuntimeException("Preço unitário do item deve ser maior que zero.");
+                throw new RegraNegocioException("Preço unitário do item deve ser maior que zero.");
             }
 
             Produto produto = produtoRepository.findById(itemDTO.getProdutoId())
-                    .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Produto não encontrado"));
 
             validarEstoque(produto, itemDTO.getQuantidade());
             baixarEstoque(produto, itemDTO.getQuantidade());
@@ -147,7 +148,7 @@ public class VendaService {
                 .add(frete);
 
         if (valorFinalVenda.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("O valor final da venda deve ser maior que zero.");
+            throw new RegraNegocioException("O valor final da venda deve ser maior que zero.");
         }
 
         venda.setValorTotal(valorFinalVenda);
@@ -171,14 +172,14 @@ public class VendaService {
     @Transactional
     public VendaDTO atualizarVenda(Long id, VendaDTO vendaDTO) {
         Venda venda = vendaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Venda não encontrada para o ID: " + id));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Venda não encontrada para o ID: " + id));
 
         if (venda.getStatus() == StatusVenda.CANCELADA) {
-            throw new RuntimeException("Não é possível alterar uma venda cancelada");
+            throw new RegraNegocioException("Não é possível alterar uma venda cancelada");
         }
 
         if (vendaDTO.getItens() == null || vendaDTO.getItens().isEmpty()) {
-            throw new RuntimeException("A venda precisa ter pelo menos 1 item");
+            throw new RegraNegocioException("A venda precisa ter pelo menos 1 item");
         }
 
         // devolve estoque antigo
@@ -188,7 +189,7 @@ public class VendaService {
 
         if (vendaDTO.getClienteId() != null) {
             venda.setCliente(clienteService.encontrarPorId(vendaDTO.getClienteId())
-                    .orElseThrow(() -> new RuntimeException("Cliente não encontrado")));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado")));
         } else {
             venda.setCliente(null);
         }
@@ -208,19 +209,19 @@ public class VendaService {
 
         for (ItemVendaDTO itemDTO : vendaDTO.getItens()) {
             if (itemDTO.getProdutoId() == null) {
-                throw new RuntimeException("ProdutoId do item é obrigatório.");
+                throw new RegraNegocioException("Produto ID do item é obrigatório.");
             }
 
             if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade() <= 0) {
-                throw new RuntimeException("Quantidade do item deve ser maior que zero.");
+                throw new RegraNegocioException("Quantidade do item deve ser maior que zero.");
             }
 
             if (itemDTO.getPrecoUnitario() == null || itemDTO.getPrecoUnitario().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new RuntimeException("Preço unitário do item deve ser maior que zero.");
+                throw new RegraNegocioException("Preço unitário do item deve ser maior que zero.");
             }
 
             Produto produto = produtoRepository.findById(itemDTO.getProdutoId())
-                    .orElseThrow(() -> new RuntimeException("Produto não encontrado"));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Produto não encontrado"));
 
             validarEstoque(produto, itemDTO.getQuantidade());
             baixarEstoque(produto, itemDTO.getQuantidade());
@@ -252,7 +253,7 @@ public class VendaService {
         BigDecimal valorFinal = valorTotalItens.subtract(desconto).add(adicional).add(frete);
 
         if (valorFinal.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RuntimeException("O valor final da venda deve ser maior que zero.");
+            throw new RegraNegocioException("O valor final da venda deve ser maior que zero.");
         }
 
         venda.setValorTotal(valorFinal);
@@ -273,7 +274,7 @@ public class VendaService {
     @Transactional
     public void cancelarVenda(Long id, String motivo) {
         Venda venda = vendaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Venda não encontrada para o ID: " + id));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Venda não encontrada para o ID: " + id));
 
         if (venda.getStatus() == StatusVenda.CANCELADA) {
             return;
@@ -281,8 +282,10 @@ public class VendaService {
 
         for (ItemVenda item : venda.getItens()) {
             Produto produto = item.getProduto();
-            devolverEstoque(produto, item.getQuantidade()); //devolve quantidade vendida por engano
+            devolverEstoque(produto, item.getQuantidade());
         }
+
+        tituloFinanceiroService.cancelarTituloPorVenda(venda);
 
         venda.setStatus(StatusVenda.CANCELADA);
         venda.setCanceladaEm(LocalDateTime.now());
@@ -293,27 +296,27 @@ public class VendaService {
 
     private void validarVenda(VendaDTO vendaDTO) {
         if (vendaDTO == null) {
-            throw new RuntimeException("Os dados da venda não podem ser nulos.");
+            throw new RegraNegocioException("Os dados da venda não podem ser nulos.");
         }
 
         if (vendaDTO.getItens() == null || vendaDTO.getItens().isEmpty()) {
-            throw new RuntimeException("A venda precisa ter pelo menos 1 item.");
+            throw new RegraNegocioException(("A venda precisa ter pelo menos 1 item."));
         }
 
         if (vendaDTO.getCategoriaFinanceiraId() == null) {
-            throw new RuntimeException("categoriaFinanceiraId é obrigatório.");
+            throw new RegraNegocioException(("Categoria Financeira é obrigatório."));
         }
 
         if (vendaDTO.getFormaPagamentoId() == null) {
-            throw new RuntimeException("formaPagamentoId é obrigatório.");
+            throw new RegraNegocioException(("Forma Pagamento é obrigatório."));
         }
 
         if (vendaDTO.getNumeroParcelas() != null && vendaDTO.getNumeroParcelas() <= 0) {
-            throw new RuntimeException("numeroParcelas deve ser maior que zero.");
+            throw new RegraNegocioException(("Numero Parcelas deve ser maior que zero."));
         }
 
         if (vendaDTO.getIntervaloDias() != null && vendaDTO.getIntervaloDias() <= 0) {
-            throw new RuntimeException("intervaloDias deve ser maior que zero.");
+            throw new RegraNegocioException("Intervalo de dias deve ser maior que zero.");
         }
     }
 

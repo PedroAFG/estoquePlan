@@ -55,14 +55,14 @@ public class ClienteService {
 
     public Cliente atualizarCliente(Long id, Cliente clienteAtualizado) {
         Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado!"));
 
         if (clienteAtualizado.getNome() == null || clienteAtualizado.getNome().isBlank()) {
-            throw new RuntimeException("Nome não pode ser nulo!");
+            throw new RegraNegocioException("Nome não pode ser nulo!");
         }
 
         if (clienteAtualizado.getTelefone() == null) {
-            throw new RuntimeException("Telefone é obrigatório!");
+            throw new RegraNegocioException("Telefone é obrigatório!");
         }
 
         return clienteRepository.save(cliente);
@@ -81,7 +81,7 @@ public class ClienteService {
 
     public void inativarClientePorId(Long id) {
         Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado!"));
 
         if (!cliente.isAtivo()) {
             return;
@@ -94,7 +94,7 @@ public class ClienteService {
 
     public void ativarClientePorId(Long id) {
         Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado"));
 
         cliente.setAtivo(true);
         cliente.setInativadoEm(null);

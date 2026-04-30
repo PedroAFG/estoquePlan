@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Produtos from "./pages/Produtos";
@@ -13,16 +13,18 @@ import ClientesPage from "./pages/ClientesPage"
 import Configuracoes from "./pages/Configuracoes";
 import Usuarios from "./pages/Usuarios"
 import AdminRoute from "./components/AdminRoute"
-
+import RedefinirSenha from "./pages/RedefinirSenha";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { UserProvider } from "./contexts/UserContext";
+import EsqueciSenha from "./pages/EsqueciSenha";
 
 function App() {
   return (
     <UserProvider>
       <Router>
         <Routes>
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
 
           <Route
             path="/dashboard"
@@ -79,8 +81,8 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
-          
+
+
 
           <Route
             path="/cadastros/categorias"
@@ -145,6 +147,18 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/redefinir-senha"
+            element={<RedefinirSenha />}
+          />
+
+          <Route
+            path="/esqueci-senha"
+            element={<EsqueciSenha />}
+          />
+
+          <Route path="/login" element={<Login />} />
 
         </Routes>
       </Router>

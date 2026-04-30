@@ -629,7 +629,16 @@ export default function Usuarios() {
                   onChange={(e) => updateFormField("nome", e.target.value)}
                   error={!!formErrors.nome}
                   helperText={formErrors.nome}
+                  inputProps={{ maxLength: 200 }}
                   fullWidth
+                  helperText={
+                    <Box display="flex" justifyContent="space-between" width="100%">
+                      <span style={{ color: formErrors.nome ? "#d32f2f" : undefined }}>
+                        {formErrors.nome || "Obrigatório"}
+                      </span>
+                      <span>{form.nome.length}/200</span>
+                    </Box>
+                  }
                 />
               </Grid>
 
@@ -640,7 +649,16 @@ export default function Usuarios() {
                   onChange={(e) => updateFormField("sobrenome", e.target.value)}
                   error={!!formErrors.sobrenome}
                   helperText={formErrors.sobrenome}
+                  inputProps={{ maxLength: 200 }}
                   fullWidth
+                  helperText={
+                    <Box display="flex" justifyContent="space-between" width="100%">
+                      <span style={{ color: formErrors.sobrenome ? "#d32f2f" : undefined }}>
+                        {formErrors.sobrenome || "Obrigatório"}
+                      </span>
+                      <span>{form.sobrenome.length}/200</span>
+                    </Box>
+                  }
                 />
               </Grid>
 
@@ -664,7 +682,16 @@ export default function Usuarios() {
                   onChange={(e) => updateFormField("cargo", e.target.value)}
                   error={!!formErrors.cargo}
                   helperText={formErrors.cargo}
+                  inputProps={{ maxLength: 50 }}
                   fullWidth
+                  helperText={
+                    <Box display="flex" justifyContent="space-between" width="100%">
+                      <span style={{ color: formErrors.cargo ? "#d32f2f" : undefined }}>
+                        {formErrors.cargo || "Obrigatório"}
+                      </span>
+                      <span>{form.cargo.length}/50</span>
+                    </Box>
+                  }
                 />
               </Grid>
 
@@ -690,7 +717,16 @@ export default function Usuarios() {
                   onChange={(e) => updateFormField("login", e.target.value)}
                   error={!!formErrors.login}
                   helperText={formErrors.login}
+                  inputProps={{ maxLength: 100 }}
                   fullWidth
+                  helperText={
+                    <Box display="flex" justifyContent="space-between" width="100%">
+                      <span style={{ color: formErrors.login ? "#d32f2f" : undefined }}>
+                        {formErrors.login || "Obrigatório"}
+                      </span>
+                      <span>{form.login.length}/100</span>
+                    </Box>
+                  }
                 />
               </Grid>
 

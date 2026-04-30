@@ -1,5 +1,7 @@
 package com.estoqueplan.estoque_plan.financeiro.service;
 
+import com.estoqueplan.estoque_plan.exception.RecursoNaoEncontradoException;
+import com.estoqueplan.estoque_plan.exception.RegraNegocioException;
 import com.estoqueplan.estoque_plan.financeiro.model.CategoriaFinanceira;
 import com.estoqueplan.estoque_plan.financeiro.repository.CategoriaFinanceiraRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,13 +30,13 @@ public class CategoriaFinanceiraService {
 
     public CategoriaFinanceira atualizarCategoriaFinanceira(Long id, CategoriaFinanceira categoriaFinAtualizada) {
         CategoriaFinanceira categoriaFinanceira = categoriaFinanceiraRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada!"));
 
         if (categoriaFinAtualizada.getNome() == null || categoriaFinAtualizada.getNome().isBlank()) {
-            throw new RuntimeException("Nome não pode ser vazio!");
+            throw new RegraNegocioException("Nome não pode ser vazio!");
         }
         if (categoriaFinAtualizada.getTipo() == null) {
-            throw new RuntimeException("Tipo é obrigatório!");
+            throw new RegraNegocioException("Tipo é obrigatório!");
         }
 
         categoriaFinanceira.setNome(categoriaFinAtualizada.getNome().trim());
@@ -45,7 +47,7 @@ public class CategoriaFinanceiraService {
 
     public void inativarCategoriaFinanceira(Long id) {
         CategoriaFinanceira categoriaFinanceira = categoriaFinanceiraRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada!"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada!"));
 
         if (!categoriaFinanceira.isAtivo()) {
             return;
@@ -58,7 +60,7 @@ public class CategoriaFinanceiraService {
 
     public void ativarCategoriaFinanceiraPorId(Long id) {
         CategoriaFinanceira categoriaFinanceira = categoriaFinanceiraRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada"));
 
         categoriaFinanceira.setAtivo(true);
         categoriaFinanceira.setInativadoEm(null);
