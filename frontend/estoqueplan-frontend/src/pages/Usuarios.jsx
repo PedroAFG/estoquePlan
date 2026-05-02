@@ -628,7 +628,6 @@ export default function Usuarios() {
                   value={form.nome}
                   onChange={(e) => updateFormField("nome", e.target.value)}
                   error={!!formErrors.nome}
-                  helperText={formErrors.nome}
                   inputProps={{ maxLength: 200 }}
                   fullWidth
                   helperText={
@@ -648,7 +647,6 @@ export default function Usuarios() {
                   value={form.sobrenome}
                   onChange={(e) => updateFormField("sobrenome", e.target.value)}
                   error={!!formErrors.sobrenome}
-                  helperText={formErrors.sobrenome}
                   inputProps={{ maxLength: 200 }}
                   fullWidth
                   helperText={
@@ -669,7 +667,6 @@ export default function Usuarios() {
                   value={form.dataNascimento}
                   onChange={(e) => updateFormField("dataNascimento", e.target.value)}
                   error={!!formErrors.dataNascimento}
-                  helperText={formErrors.dataNascimento}
                   fullWidth
                   InputLabelProps={{ shrink: true }}
                 />
@@ -681,7 +678,6 @@ export default function Usuarios() {
                   value={form.cargo}
                   onChange={(e) => updateFormField("cargo", e.target.value)}
                   error={!!formErrors.cargo}
-                  helperText={formErrors.cargo}
                   inputProps={{ maxLength: 50 }}
                   fullWidth
                   helperText={
@@ -716,7 +712,6 @@ export default function Usuarios() {
                   value={form.login}
                   onChange={(e) => updateFormField("login", e.target.value)}
                   error={!!formErrors.login}
-                  helperText={formErrors.login}
                   inputProps={{ maxLength: 100 }}
                   fullWidth
                   helperText={
