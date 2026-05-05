@@ -26,34 +26,36 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginDTO request) {
         Usuario usuario = usuarioService.buscarPorLogin(request.getLogin());
         boolean valido = usuario != null && usuarioService.validar(request.getLogin(), request.getSenha());
+
         if (valido) {
             String token = jwtUtil.generateToken(usuario.getLogin(), usuario.getPermissao().name());
+
             ResponseCookie jwtCookie = ResponseCookie.from("jwt", token)
                     .httpOnly(true)
-                    .secure(false) // true só em produção HTTPS
+                    .secure(true)
                     .path("/")
                     .maxAge(24 * 60 * 60)
-                    .sameSite("Strict")
+                    .sameSite("None")
                     .build();
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
                     .body(new JwtResponse(token));
-        } else {
-            return ResponseEntity.status(401).body("Credenciais inválidas");
         }
-    }
 
+        return ResponseEntity.status(401).body("Credenciais inválidas");
+    }
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout() {
         ResponseCookie jwtCookie = ResponseCookie.from("jwt", "")
                 .httpOnly(true)
-                .secure(false)
+                .secure(true)
                 .path("/")
-                .maxAge(0) // expira agora!
-                .sameSite("Strict")
+                .maxAge(0)
+                .sameSite("None")
                 .build();
+
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
                 .body("Logout realizado!");
