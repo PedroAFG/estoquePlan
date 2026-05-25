@@ -90,6 +90,8 @@ const emptyCreate = {
   tipo: "A_RECEBER",
   descricao: "",
   valorTotal: "",
+  tipoDataEmissao: "HOJE",
+  dataEmissao: dayjs().format("YYYY-MM-DD"),
   categoriaId: "",
   formaPagamentoId: "",
   tipoPagamento: "AVISTA",
@@ -101,6 +103,7 @@ const emptyCreate = {
 const emptyCreateErrors = {
   descricao: "",
   valorTotal: "",
+  dataEmissao: "",
   categoriaId: "",
   formaPagamentoId: "",
   numeroParcelas: "",
@@ -309,6 +312,7 @@ export default function FinanceiroTitulos() {
       numeroParcelas: "",
       primeiroVencimento: "",
       intervaloDias: "",
+      dataEmissao: "",
     };
 
     const descricao = String(formCreate.descricao || "").trim();
@@ -345,6 +349,10 @@ export default function FinanceiroTitulos() {
 
     if (!intervaloDias || intervaloDias < 1) {
       novosErros.intervaloDias = "Informe um intervalo válido.";
+    }
+
+    if (formCreate.tipoDataEmissao === "OUTRA_DATA" && !formCreate.dataEmissao) {
+      novosErros.dataEmissao = "Informe a data de emissão.";
     }
 
     setCreateErrors(novosErros);
@@ -421,6 +429,10 @@ export default function FinanceiroTitulos() {
         numeroParcelas: Number(formCreate.numeroParcelas || 1),
         primeiroVencimento: String(formCreate.primeiroVencimento || "").trim(),
         intervaloDias: Number(formCreate.intervaloDias || 30),
+        dataEmissao:
+          formCreate.tipoDataEmissao === "HOJE"
+            ? dayjs().format("YYYY-MM-DDTHH:mm:ss")
+            : `${formCreate.dataEmissao}T${dayjs().format("HH:mm:ss")}`,
       };
 
       setLoading(true);
@@ -463,6 +475,13 @@ export default function FinanceiroTitulos() {
 
       setBaixaError("");
       setBaixaSuccess("");
+
+      const dataMinima = getDataMinimaBaixa();
+
+      if (dataMinima && formBaixa.dataBaixa < dataMinima) {
+        setBaixaError("A data da baixa não pode ser anterior à data de emissão do título.");
+        return;
+      }
 
       const payload = {
         dataBaixa: String(formBaixa.dataBaixa || "").trim(),
@@ -698,6 +717,12 @@ export default function FinanceiroTitulos() {
     }
   };
 
+  const getDataMinimaBaixa = () => {
+    return detail?.dataEmissao
+      ? dayjs(detail.dataEmissao).format("YYYY-MM-DD")
+      : "";
+  };
+
   return (
     <AppLayout title="Títulos">
       <Grid container spacing={2}>
@@ -765,7 +790,7 @@ export default function FinanceiroTitulos() {
                     md: "1fr 1fr",
                     xl:
                       filters.periodo === "custom"
-                        ? "minmax(220px,1.4fr) minmax(140px,0.8fr) minmax(140px,0.8fr) minmax(200px,1.1fr) minmax(190px,1fr) minmax(150px,0.8fr) minmax(150px,0.8fr) auto"
+                        ? "minmax(220px, 1.4fr) minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(200px, 1fr)"
                         : "minmax(220px,1.5fr) minmax(140px,0.8fr) minmax(140px,0.8fr) minmax(220px,1.2fr) minmax(190px,1fr) auto",
                   },
                   gap: 2,
@@ -915,10 +940,9 @@ export default function FinanceiroTitulos() {
                   onClick={() => setFilters(emptyFilters)}
                   sx={{
                     height: 56,
-                    minWidth: 90,
-                    px: 1.5,
+                    minWidth: 100,
                     whiteSpace: "nowrap",
-                    justifySelf: { xs: "start", xl: "end" },
+                    justifySelf: "start",
                   }}
                 >
                   Limpar
@@ -1123,6 +1147,54 @@ export default function FinanceiroTitulos() {
                   </Select>
                 </FormControl>
               </Grid>
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel>Data de emissão</InputLabel>
+                  <Select
+                    label="Data de emissão"
+                    value={formCreate.tipoDataEmissao}
+                    onChange={(e) => {
+                      const tipo = e.target.value;
+
+                      setFormCreate((prev) => ({
+                        ...prev,
+                        tipoDataEmissao: tipo,
+                        dataEmissao:
+                          tipo === "HOJE"
+                            ? dayjs().format("YYYY-MM-DD")
+                            : prev.dataEmissao || dayjs().format("YYYY-MM-DD"),
+                      }));
+
+                      setCreateErrors((prev) => ({
+                        ...prev,
+                        dataEmissao: "",
+                      }));
+                    }}
+                  >
+                    <MenuItem value="HOJE">Emissão de hoje</MenuItem>
+                    <MenuItem value="OUTRA_DATA">Outra data</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              {formCreate.tipoDataEmissao === "OUTRA_DATA" && (
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    label="Selecionar data"
+                    type="date"
+                    value={formCreate.dataEmissao}
+                    onChange={(e) => updateCreateField("dataEmissao", e.target.value)}
+                    error={!!createErrors.dataEmissao}
+                    helperText={createErrors.dataEmissao}
+                    fullWidth
+                    InputLabelProps={{ shrink: true }}
+                    inputProps={{
+                      max: dayjs().format("YYYY-MM-DD"),
+                    }}
+                  />
+                </Grid>
+              )}
 
               <Grid item xs={12} md={8}>
                 <TextField
@@ -1449,6 +1521,10 @@ export default function FinanceiroTitulos() {
           )}
         </DialogContent>
         <DialogActions>
+          <Button onClick={closeDetalhes} disabled={loading}>
+            Fechar
+          </Button>
+
           {isAdmin ? (
             <Button
               color="warning"
@@ -1488,7 +1564,45 @@ export default function FinanceiroTitulos() {
         <DialogTitle>Baixar parcela</DialogTitle>
 
         <DialogContent dividers>
-          {/* conteúdo da baixa */}
+          <Stack spacing={2} mt={1}>
+            {baixaError && (
+              <Alert severity="error" onClose={() => setBaixaError("")}>
+                {baixaError}
+              </Alert>
+            )}
+
+            <TextField
+              label="Data da baixa"
+              type="date"
+              value={formBaixa.dataBaixa}
+              onChange={(e) =>
+                setFormBaixa((prev) => ({
+                  ...prev,
+                  dataBaixa: e.target.value,
+                }))
+              }
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              inputProps={{
+                min: getDataMinimaBaixa(),
+              }}
+            />
+
+            <TextField
+              label="Descrição da movimentação"
+              value={formBaixa.descricao}
+              onChange={(e) =>
+                setFormBaixa((prev) => ({
+                  ...prev,
+                  descricao: e.target.value,
+                }))
+              }
+              fullWidth
+              multiline
+              minRows={3}
+              placeholder="Ex: Baixa manual da parcela"
+            />
+          </Stack>
         </DialogContent>
 
         <DialogActions>

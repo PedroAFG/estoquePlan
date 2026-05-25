@@ -16,7 +16,20 @@ public class MovimentacaoCaixaService {
     @Autowired
     private MovimentacaoCaixaRepository movimentacaoCaixaRepository;
 
-    public MovimentacaoCaixa criarMovimentacao(TipoMovimentacao tipo, BigDecimal valor, String descricao) {
+    public MovimentacaoCaixa criarMovimentacao(
+            TipoMovimentacao tipo,
+            BigDecimal valor,
+            String descricao
+    ) {
+        return criarMovimentacao(tipo, valor, descricao, LocalDateTime.now());
+    }
+
+    public MovimentacaoCaixa criarMovimentacao(
+            TipoMovimentacao tipo,
+            BigDecimal valor,
+            String descricao,
+            LocalDateTime dataHora
+    ) {
         BigDecimal saldoAnterior = movimentacaoCaixaRepository
                 .findTopByOrderByDataHoraDesc()
                 .map(MovimentacaoCaixa::getSaldoApos)
@@ -29,7 +42,7 @@ public class MovimentacaoCaixaService {
         mov.setValor(valor);
         mov.setDescricao(descricao);
         mov.setSaldoApos(saldoNovo);
-        mov.setDataHora(LocalDateTime.now()); // ou deixa o @PrePersist fazer isso
+        mov.setDataHora(dataHora != null ? dataHora : LocalDateTime.now());
 
         return movimentacaoCaixaRepository.save(mov);
     }
