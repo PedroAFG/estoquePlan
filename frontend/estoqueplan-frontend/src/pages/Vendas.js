@@ -3,6 +3,7 @@ import AppLayout from "../layout/AppLayout";
 
 import {
     Grid,
+    Autocomplete,
     Checkbox,
     Paper,
     Typography,
@@ -74,8 +75,15 @@ const emptyItemErrors = {
 
 const emptyForm = {
     clienteId: "",
+    cepEntrega: "",
     rua: "",
+    numeroEntrega: "",
+    complementoEntrega: "",
     bairro: "",
+    cidadeEntrega: "",
+    tipoDataVenda: "HOJE",
+    dataDaVenda: dayjs().format("YYYY-MM-DD"),
+    ufEntrega: "",
     fone: "",
     observacao: "",
     desconto: "",
@@ -94,9 +102,15 @@ const emptyForm = {
 
 const emptyFormErrors = {
     clienteId: "",
+    cepEntrega: "",
     rua: "",
+    numeroEntrega: "",
+    complementoEntrega: "",
     bairro: "",
+    cidadeEntrega: "",
+    ufEntrega: "",
     fone: "",
+    dataDaVenda: "",
     observacao: "",
     desconto: "",
     adicional: "",
@@ -234,6 +248,23 @@ export default function Vendas() {
     const getProduto = (produtoId) =>
         produtos.find((p) => Number(p.id) === Number(produtoId));
 
+    const formatarEnderecoCliente = (cliente) => {
+        const endereco = cliente?.endereco;
+        const cep = endereco?.cep;
+
+        if (!endereco || !cep) return "";
+
+        const partes = [
+            cep.logradouro,
+            endereco.numero,
+            cep.bairro,
+            cep.cidade?.nome,
+            cep.cidade?.estado?.uf,
+        ].filter(Boolean);
+
+        return partes.join(" - ");
+    };
+
     const statusChip = (v) => {
         const st = v.status || "ATIVA";
         return (
@@ -360,7 +391,11 @@ export default function Vendas() {
 
     const openCreate = () => {
         setEditing(null);
-        setForm(emptyForm);
+        setForm({
+            emptyForm,
+            tipoDataVenda: "HOJE",
+            dataDaVenda: dayjs().format("YYYY-MM-DD"),
+        });
         setFormErrors(emptyFormErrors);
         setFormError("");
         setOpenForm(true);
@@ -390,8 +425,13 @@ export default function Vendas() {
 
         setForm({
             clienteId: v.clienteId ?? "",
+            cepEntrega: v.cepEntrega ?? "",
             rua: v.rua ?? "",
+            numeroEntrega: v.numeroEntrega ?? "",
+            complementoEntrega: v.complementoEntrega ?? "",
             bairro: v.bairro ?? "",
+            cidadeEntrega: v.cidadeEntrega ?? "",
+            ufEntrega: v.ufEntrega ?? "",
             fone: v.fone ?? "",
             observacao: v.observacao ?? "",
             desconto: v.desconto ?? "",
@@ -506,20 +546,65 @@ export default function Vendas() {
         setPageSuccess("");
     };
 
+    const buscarCepEntrega = async (cep) => {
+        try {
+            const cepLimpo = somenteNumeros(cep);
+
+            if (cepLimpo.length !== 8) return;
+
+            const data = await apiService.buscarEnderecoPorCep(cepLimpo);
+
+            setForm((prev) => ({
+                ...prev,
+                cepEntrega: data.cep || cepLimpo,
+                rua: data.logradouro || "",
+                bairro: data.bairro || "",
+                cidadeEntrega: data.localidade || "",
+                ufEntrega: data.uf || "",
+            }));
+
+            setFormErrors((prev) => ({
+                ...prev,
+                cepEntrega: "",
+                rua: "",
+                bairro: "",
+                cidadeEntrega: "",
+                ufEntrega: "",
+            }));
+        } catch (e) {
+            setFormError("CEP de entrega não encontrado.");
+        }
+    };
+
     const handleClienteChange = (clienteId) => {
         const c = getClienteById(clienteId);
+        const endereco = c?.endereco;
+        const cep = endereco?.cep;
+        const cidade = cep?.cidade;
+        const estado = cidade?.estado;
 
         setForm((f) => ({
             ...f,
             clienteId,
             fone: c?.telefone || "",
-            rua: c?.endereco || "",
-            bairro: f.bairro || "",
+            cepEntrega: cep?.codigo || "",
+            rua: cep?.logradouro || "",
+            numeroEntrega: endereco?.numero || "",
+            complementoEntrega: endereco?.complemento || "",
+            bairro: cep?.bairro || "",
+            cidadeEntrega: cidade?.nome || "",
+            ufEntrega: estado?.uf || "",
         }));
 
         setFormErrors((prev) => ({
             ...prev,
             clienteId: "",
+            cepEntrega: "",
+            rua: "",
+            numeroEntrega: "",
+            bairro: "",
+            cidadeEntrega: "",
+            ufEntrega: "",
         }));
 
         setFormError("");
@@ -674,6 +759,7 @@ export default function Vendas() {
             primeiroVencimento: "",
             intervaloDias: "",
             descricaoTitulo: "",
+            dataDaVenda: "",
             itens: (form.itens || []).map(() => ({ ...emptyItemErrors })),
         };
 
@@ -706,6 +792,9 @@ export default function Vendas() {
 
         if (!intervaloDias || intervaloDias <= 0) {
             novosErros.intervaloDias = "Informe um intervalo válido.";
+        }
+        if (form.tipoDataVenda === "OUTRA_DATA" && !form.dataDaVenda) {
+            novosErros.dataDaVenda = "Informe a data da venda.";
         }
 
         const itens = form.itens || [];
@@ -787,9 +876,18 @@ export default function Vendas() {
 
             const payload = {
                 clienteId: Number(form.clienteId),
+                cepEntrega: somenteNumeros(form.cepEntrega),
                 rua: String(form.rua || "").trim(),
+                numeroEntrega: String(form.numeroEntrega || "").trim(),
+                complementoEntrega: String(form.complementoEntrega || "").trim(),
                 bairro: String(form.bairro || "").trim(),
+                cidadeEntrega: String(form.cidadeEntrega || "").trim(),
+                ufEntrega: String(form.ufEntrega || "").trim(),
                 fone: String(form.fone || "").trim(),
+                dataDaVenda:
+                    form.tipoDataVenda === "HOJE"
+                        ? dayjs().format("YYYY-MM-DDTHH:mm:ss")
+                        : `${form.dataDaVenda}T${dayjs().format("HH:mm:ss")}`,
                 observacao: String(form.observacao || "").trim(),
                 desconto: form.desconto === "" ? 0 : Number(form.desconto),
                 adicional: form.adicional === "" ? 0 : Number(form.adicional),
@@ -836,7 +934,7 @@ export default function Vendas() {
                         Number(payload.desconto || 0) +
                         Number(payload.adicional || 0) +
                         Number(payload.frete || 0),
-                    dataDaVenda: saved?.dataDaVenda || new Date().toISOString(),
+                    dataDaVenda: saved?.dataDaVenda || payload.dataDaVenda,
                     status: saved?.status || "ATIVA",
                 });
 
@@ -1001,6 +1099,10 @@ export default function Vendas() {
         }
     }
 
+    function somenteNumeros(valor) {
+        return String(valor || "").replace(/\D/g, "");
+    }
+
     const baixarArquivo = (blob, nomeArquivo) => {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -1047,6 +1149,9 @@ export default function Vendas() {
             setLoading(false);
         }
     };
+
+    const labelShrinkWhenFilled = (valor) =>
+        String(valor || "").trim() ? { shrink: true } : undefined;
 
     return (
         <AppLayout title="Vendas">
@@ -1126,7 +1231,7 @@ export default function Vendas() {
                                         md: "1fr 1fr",
                                         xl:
                                             filters.periodo === "custom"
-                                                ? "minmax(220px,1.4fr) minmax(140px,0.8fr) minmax(140px,0.8fr) minmax(200px,1.1fr) minmax(190px,1fr) minmax(150px,0.8fr) minmax(150px,0.8fr) auto"
+                                                ? "minmax(220px, 1.4fr) minmax(140px, 0.8fr) minmax(140px, 0.8fr) minmax(200px, 1fr)"
                                                 : "minmax(220px,1.5fr) minmax(140px,0.8fr) minmax(140px,0.8fr) minmax(220px,1.2fr) minmax(190px,1fr) auto",
                                     },
                                     gap: 2,
@@ -1263,7 +1368,7 @@ export default function Vendas() {
                                         height: 56,
                                         minWidth: 100,
                                         whiteSpace: "nowrap",
-                                        justifySelf: { xs: "start", xl: "center" },
+                                        justifySelf: "start",
                                     }}
                                 >
                                     Limpar
@@ -1454,29 +1559,111 @@ export default function Vendas() {
 
                         <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
                             <Grid container spacing={2}>
+                                <Grid
+                                    item
+                                    xs={12}
+                                    md={4}
+                                    sx={{
+                                        minWidth: 320,
+                                    }}
+                                >
+                                    <Autocomplete
+                                        sx={{ width: "100%" }}
+                                        slotProps={{
+                                            paper: {
+                                                sx: {
+                                                    minWidth: 420,
+                                                },
+                                            },
+                                        }}
+                                        options={clientes}
+                                        value={getClienteById(form.clienteId) || null}
+                                        onChange={(_, novoCliente) => {
+                                            handleClienteChange(novoCliente?.id || "");
+                                        }}
+                                        getOptionLabel={(cliente) => {
+                                            const documento = cliente?.cpf || cliente?.cnpj || "";
+                                            return `${cliente?.nome || ""}${documento ? ` - ${documento}` : ""}`;
+                                        }}
+                                        isOptionEqualToValue={(option, value) =>
+                                            Number(option.id) === Number(value.id)
+                                        }
+                                        filterOptions={(options, state) => {
+                                            const termoTexto = String(state.inputValue || "")
+                                                .trim()
+                                                .toLowerCase();
+
+                                            const termoNumero = somenteNumeros(state.inputValue);
+
+                                            if (!termoTexto && !termoNumero) {
+                                                return options;
+                                            }
+
+                                            return options.filter((cliente) => {
+                                                const nome = String(cliente.nome || "").toLowerCase();
+                                                const cpf = somenteNumeros(cliente.cpf);
+                                                const cnpj = somenteNumeros(cliente.cnpj);
+
+                                                const buscaPorNome = termoTexto && nome.includes(termoTexto);
+                                                const buscaPorCpf = termoNumero && cpf.includes(termoNumero);
+                                                const buscaPorCnpj = termoNumero && cnpj.includes(termoNumero);
+
+                                                return buscaPorNome || buscaPorCpf || buscaPorCnpj;
+                                            });
+                                        }}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params}
+                                                label="Cliente"
+                                                error={!!formErrors.clienteId}
+                                                helperText={formErrors.clienteId}
+                                                fullWidth
+                                            />
+                                        )}
+                                    />
+                                </Grid>
                                 <Grid item xs={12} md={4}>
-                                    <FormControl
-                                        fullWidth
-                                        size="medium"
-                                        error={!!formErrors.clienteId}
-                                        sx={clienteSelectSx}
-                                    >
-                                        <InputLabel>Cliente</InputLabel>
+                                    <FormControl fullWidth>
+                                        <InputLabel>Data da venda</InputLabel>
                                         <Select
-                                            label="Cliente"
-                                            value={form.clienteId}
-                                            onChange={(e) => handleClienteChange(e.target.value)}
-                                            sx={selectInputSx}
+                                            label="Data da venda"
+                                            value={form.tipoDataVenda}
+                                            onChange={(e) => {
+                                                const tipo = e.target.value;
+
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    tipoDataVenda: tipo,
+                                                    dataDaVenda:
+                                                        tipo === "HOJE"
+                                                            ? dayjs().format("YYYY-MM-DD")
+                                                            : prev.dataDaVenda || dayjs().format("YYYY-MM-DD"),
+                                                }));
+                                            }}
                                         >
-                                            {clientes.map((c) => (
-                                                <MenuItem key={c.id} value={c.id}>
-                                                    {c.nome}
-                                                </MenuItem>
-                                            ))}
+                                            <MenuItem value="HOJE">Venda de hoje</MenuItem>
+                                            <MenuItem value="OUTRA_DATA">Outra data</MenuItem>
                                         </Select>
-                                        <FormHelperText>{formErrors.clienteId}</FormHelperText>
                                     </FormControl>
                                 </Grid>
+
+                                {form.tipoDataVenda === "OUTRA_DATA" && (
+                                    <Grid item xs={12} md={4}>
+                                        <TextField
+                                            label="Selecionar data"
+                                            type="date"
+                                            value={form.dataDaVenda}
+                                            onChange={(e) => updateFormField("dataDaVenda", e.target.value)}
+                                            error={!!formErrors.dataDaVenda}
+                                            helperText={formErrors.dataDaVenda}
+                                            fullWidth
+                                            InputLabelProps={{ shrink: true }}
+                                            inputProps={{
+                                                max: dayjs().format("YYYY-MM-DD"),
+                                            }}
+                                        />
+                                    </Grid>
+                                )}
 
                                 <Grid item xs={12} md={4}>
                                     <TextField
@@ -1488,10 +1675,30 @@ export default function Vendas() {
                                         error={!!formErrors.fone}
                                         helperText={formErrors.fone}
                                         fullWidth
+                                        InputLabelProps={labelShrinkWhenFilled(form.fone)}
                                     />
                                 </Grid>
 
-                                <Grid item xs={12} md={4}>
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="CEP de entrega"
+                                        value={form.cepEntrega}
+                                        onChange={(e) => {
+                                            const valor = e.target.value;
+                                            updateFormField("cepEntrega", valor);
+
+                                            if (somenteNumeros(valor).length === 8) {
+                                                buscarCepEntrega(valor);
+                                            }
+                                        }}
+                                        error={!!formErrors.cepEntrega}
+                                        helperText={formErrors.cepEntrega}
+                                        fullWidth
+                                        InputLabelProps={labelShrinkWhenFilled(form.cepEntrega)}
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12} md={6}>
                                     <TextField
                                         label="Rua"
                                         value={form.rua}
@@ -1499,6 +1706,31 @@ export default function Vendas() {
                                         error={!!formErrors.rua}
                                         helperText={formErrors.rua}
                                         fullWidth
+                                        InputLabelProps={labelShrinkWhenFilled(form.rua)}
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Número"
+                                        value={form.numeroEntrega}
+                                        onChange={(e) => updateFormField("numeroEntrega", e.target.value)}
+                                        error={!!formErrors.numeroEntrega}
+                                        helperText={formErrors.numeroEntrega}
+                                        fullWidth
+                                        InputLabelProps={labelShrinkWhenFilled(form.numeroEntrega)}
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12} md={4}>
+                                    <TextField
+                                        label="Complemento"
+                                        value={form.complementoEntrega}
+                                        onChange={(e) => updateFormField("complementoEntrega", e.target.value)}
+                                        error={!!formErrors.complementoEntrega}
+                                        helperText={formErrors.complementoEntrega}
+                                        fullWidth
+                                        InputLabelProps={labelShrinkWhenFilled(form.complementoEntrega)}
                                     />
                                 </Grid>
 
@@ -1510,6 +1742,32 @@ export default function Vendas() {
                                         error={!!formErrors.bairro}
                                         helperText={formErrors.bairro}
                                         fullWidth
+                                        InputLabelProps={labelShrinkWhenFilled(form.bairro)}
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12} md={3}>
+                                    <TextField
+                                        label="Cidade"
+                                        value={form.cidadeEntrega}
+                                        onChange={(e) => updateFormField("cidadeEntrega", e.target.value)}
+                                        error={!!formErrors.cidadeEntrega}
+                                        helperText={formErrors.cidadeEntrega}
+                                        fullWidth
+                                        InputLabelProps={labelShrinkWhenFilled(form.cidadeEntrega)}
+                                    />
+                                </Grid>
+
+                                <Grid item xs={12} md={1}>
+                                    <TextField
+                                        label="UF"
+                                        value={form.ufEntrega}
+                                        onChange={(e) => updateFormField("ufEntrega", e.target.value)}
+                                        error={!!formErrors.ufEntrega}
+                                        helperText={formErrors.ufEntrega}
+                                        inputProps={{ maxLength: 2 }}
+                                        fullWidth
+                                        InputLabelProps={labelShrinkWhenFilled(form.ufEntrega)}
                                     />
                                 </Grid>
 
@@ -1939,6 +2197,7 @@ export default function Vendas() {
                                             helperText={formErrors.numeroParcelas}
                                             fullWidth
                                             disabled={form.tipoPagamento === "AVISTA"}
+                                            InputLabelProps={labelShrinkWhenFilled(form.numeroParcelas)}
                                         />
                                     </Grid>
 
@@ -1973,6 +2232,7 @@ export default function Vendas() {
                                             error={!!formErrors.intervaloDias}
                                             helperText={formErrors.intervaloDias}
                                             fullWidth
+                                            InputLabelProps={labelShrinkWhenFilled(form.intervaloDias)}
                                             disabled={
                                                 form.tipoPagamento === "AVISTA" ||
                                                 Number(form.numeroParcelas || 1) <= 1
@@ -2137,22 +2397,30 @@ export default function Vendas() {
                                     </Typography>
                                 </Grid>
 
-                                <Grid item xs={12} md={6}>
+                                <Grid item xs={12}>
                                     <Typography variant="body2" color="text.secondary">
-                                        Rua
+                                        Endereço
                                     </Typography>
-                                    <Typography sx={{ fontWeight: 800 }}>
-                                        {details.rua || "-"}
-                                    </Typography>
-                                </Grid>
 
-                                <Grid item xs={12} md={6}>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Bairro
-                                    </Typography>
-                                    <Typography sx={{ fontWeight: 800 }}>
-                                        {details.bairro || "-"}
-                                    </Typography>
+                                    <Grid item xs={12}>
+                                        <Typography variant="body2" color="text.secondary">
+                                            Endereço
+                                        </Typography>
+
+                                        <Typography sx={{ fontWeight: 800 }}>
+                                            {[
+                                                details.rua,
+                                                details.numeroEntrega,
+                                                details.complementoEntrega,
+                                                details.bairro,
+                                                details.cidadeEntrega,
+                                                details.ufEntrega,
+                                                details.cepEntrega,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(" - ") || "-"}
+                                        </Typography>
+                                    </Grid>
                                 </Grid>
 
                                 <Grid item xs={12}>

@@ -9,11 +9,11 @@ import com.estoqueplan.estoque_plan.repository.ClienteRepository;
 import com.estoqueplan.estoque_plan.repository.VendaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import com.estoqueplan.estoque_plan.model.Cep;
 
 @Service
 public class ClienteService {
@@ -28,6 +28,9 @@ public class ClienteService {
 
     @Autowired
     private VendaRepository vendaRepository;
+
+    @Autowired
+    private CepService cepService;
 
     //listar todos os clientes
     public List<Cliente> listarTodosClientes() {
@@ -45,12 +48,33 @@ public class ClienteService {
 
     //método para salvar cliente (delegando para o serviço apropriado)
     public Cliente salvar(Cliente cliente) {
+        prepararEnderecoCliente(cliente);
+
         if (cliente instanceof PessoaFisica) {
             return pessoaFisicaService.salvarPessoaFisica((PessoaFisica) cliente);
         } else if (cliente instanceof PessoaJuridica) {
             return pessoaJuridicaService.salvarPessoaJuridica((PessoaJuridica) cliente);
         }
+
         throw new IllegalArgumentException("Tipo de cliente desconhecido.");
+    }
+
+    private void prepararEnderecoCliente(Cliente cliente) {
+        if (cliente.getEndereco() == null || cliente.getEndereco().getCep() == null) {
+            return;
+        }
+
+        String codigoCep = cliente.getEndereco().getCep().getCodigo();
+
+        if (codigoCep == null || codigoCep.isBlank()) {
+            throw new RegraNegocioException("CEP é obrigatório.");
+        }
+
+        codigoCep = codigoCep.replaceAll("\\D", "");
+
+        Cep cepCompleto = cepService.buscarOuCriarPorCodigo(codigoCep);
+
+        cliente.getEndereco().setCep(cepCompleto);
     }
 
     public Cliente atualizarCliente(Long id, Cliente clienteAtualizado) {

@@ -75,7 +75,8 @@ public class TituloFinanceiroService {
                                                 Integer numeroParcelas,
                                                 LocalDate primeiroVencimento,
                                                 Integer intervaloDias,
-                                                String descricaoTitulo) {
+                                                String descricaoTitulo,
+                                                LocalDateTime dataDaVenda) {
 
         if (venda == null) {
             throw new RegraNegocioException("Venda não pode ser nula.");
@@ -119,6 +120,7 @@ public class TituloFinanceiroService {
         titulo.setStatus(StatusTitulo.PENDENTE);
         titulo.setCategoria(categoria);
         titulo.setVenda(venda);
+        titulo.setDataEmissao(dataDaVenda);
 
         List<ParcelaFinanceira> parcelas = gerarParcelas(
                 titulo,

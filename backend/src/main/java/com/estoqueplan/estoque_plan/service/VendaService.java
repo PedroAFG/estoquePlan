@@ -93,7 +93,7 @@ public class VendaService {
         venda.setBairro(vendaDTO.getBairro());
         venda.setFone(vendaDTO.getFone());
         venda.setObservacao(vendaDTO.getObservacao());
-        venda.setDataDaVenda(LocalDateTime.now());
+        venda.setDataDaVenda(vendaDTO.getDataDaVenda());
         venda.setDesconto(vendaDTO.getDesconto());
         venda.setAdicional(vendaDTO.getAdicional());
         venda.setFrete(vendaDTO.getFrete());
@@ -163,7 +163,8 @@ public class VendaService {
                 vendaDTO.getNumeroParcelas(),
                 vendaDTO.getPrimeiroVencimento(),
                 vendaDTO.getIntervaloDias(),
-                vendaDTO.getDescricaoTitulo()
+                vendaDTO.getDescricaoTitulo(),
+                vendaDTO.getDataDaVenda()
         );
 
         return converterVendaParaDTO(novaVenda);

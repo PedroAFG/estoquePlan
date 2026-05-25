@@ -43,9 +43,14 @@ public class Venda {
     private BigDecimal adicional;
     private BigDecimal frete;
 
-    // Campos para observação, endereço, fone (caso não tenha cliente)
+    //Mudanças... agora que temos integração com api da viacep
+    private String cepEntrega;
     private String rua;
+    private String numeroEntrega;
+    private String complementoEntrega;
     private String bairro;
+    private String cidadeEntrega;
+    private String ufEntrega;
     private String fone;
     private String observacao;
 }

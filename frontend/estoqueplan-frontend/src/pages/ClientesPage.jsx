@@ -56,7 +56,13 @@ const emptyForm = {
   nome: "",
   email: "",
   telefone: "",
-  endereco: "",
+
+  endereco: {
+    cep: "",
+    numero: "",
+    complemento: "",
+  },
+
   cpf: "",
   cnpj: "",
   capitalSocial: "",
@@ -67,7 +73,12 @@ const emptyFormErrors = {
   nome: "",
   email: "",
   telefone: "",
-  endereco: "",
+  cep: "",
+  logradouro: "",
+  numero: "",
+  bairro: "",
+  cidade: "",
+  uf: "",
   cpf: "",
   cnpj: "",
   capitalSocial: "",
@@ -210,6 +221,42 @@ export default function ClientesPage() {
     setPageSuccess("");
   };
 
+  const updateEnderecoField = (campo, valor) => {
+    setForm((prev) => ({
+      ...prev,
+      endereco: {
+        ...prev.endereco,
+        [campo]: valor,
+      },
+    }));
+
+    setFormErrors((prev) => ({
+      ...prev,
+      [campo]: "",
+    }));
+
+    setModalError("");
+    setPageSuccess("");
+  };
+
+  const [dadosCep, setDadosCep] = useState(null);
+
+  const buscarCep = async (cep) => {
+    try {
+      const cepLimpo = somenteNumeros(cep);
+
+      if (cepLimpo.length !== 8) return;
+
+      const data = await apiService.buscarEnderecoPorCep(cepLimpo);
+
+      setDadosCep(data);
+
+    } catch (e) {
+      setDadosCep(null);
+      setModalError("CEP não encontrado.");
+    }
+  };
+
   const abrirCriacao = () => {
     setPageError("");
     setModalError("");
@@ -231,7 +278,11 @@ export default function ClientesPage() {
       nome: cliente?.nome || "",
       email: cliente?.email || "",
       telefone: cliente?.telefone || "",
-      endereco: cliente?.endereco || "",
+      endereco: {
+        cep: cliente?.endereco?.cep?.codigo || "",
+        numero: cliente?.endereco?.numero || "",
+        complemento: cliente?.endereco?.complemento || "",
+      },
       cpf: cliente?.cpf || "",
       cnpj: cliente?.cnpj || "",
       capitalSocial: cliente?.capitalSocial ?? "",
@@ -283,18 +334,25 @@ export default function ClientesPage() {
     const nome = String(form.nome || "").trim();
     const email = String(form.email || "").trim();
     const telefone = somenteNumeros(form.telefone);
-    const endereco = String(form.endereco || "").trim();
     const cpf = somenteNumeros(form.cpf);
     const cnpj = somenteNumeros(form.cnpj);
     const capitalSocialRaw = String(form.capitalSocial ?? "").trim();
+
+    const endereco = form.endereco || {};
+
+    if (!endereco.cep) {
+      novosErros.cep = "Informe o CEP.";
+    }
+
+    if (!endereco.numero) {
+      novosErros.numero = "Informe o número.";
+    }
 
     if (!nome) {
       novosErros.nome = "Informe o nome do cliente.";
     }
 
-    if (!email) {
-      novosErros.email = "Informe o e-mail.";
-    } else if (!validarEmail(email)) {
+    if (email && !validarEmail(email)) {
       novosErros.email = "Informe um e-mail válido.";
     }
 
@@ -302,10 +360,6 @@ export default function ClientesPage() {
       novosErros.telefone = "Informe o telefone.";
     } else if (telefone.length < 10 || telefone.length > 11) {
       novosErros.telefone = "Informe um telefone válido.";
-    }
-
-    if (!endereco) {
-      novosErros.endereco = "Informe o endereço.";
     }
 
     if (form.tipo === "pessoaFisica") {
@@ -341,7 +395,14 @@ export default function ClientesPage() {
       nome: String(form.nome || "").trim(),
       email: String(form.email || "").trim(),
       telefone: somenteNumeros(form.telefone),
-      endereco: String(form.endereco || "").trim(),
+      endereco: {
+        numero: form.endereco?.numero || "",
+        complemento: form.endereco?.complemento || "",
+
+        cep: {
+          codigo: somenteNumeros(form.endereco?.cep),
+        },
+      },
       tipo: form.tipo,
     };
 
@@ -737,7 +798,7 @@ export default function ClientesPage() {
 
               <Grid item xs={12} md={6}>
                 <TextField
-                  label="E-mail"
+                  label="E-mail (opcional)"
                   value={form.email}
                   onChange={(e) => updateFormField("email", e.target.value)}
                   error={!!formErrors.email}
@@ -763,13 +824,81 @@ export default function ClientesPage() {
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid item xs={12} md={3}>
+                <PatternFormat
+                  format="#####-###"
+                  customInput={TextField}
+                  label="CEP"
+                  value={form.endereco.cep}
+                  onValueChange={(values) => {
+                    updateEnderecoField("cep", values.formattedValue);
+
+                    if (somenteNumeros(values.value).length === 8) {
+                      buscarCep(values.value);
+                    }
+                  }}
+                  error={!!formErrors.cep}
+                  helperText={formErrors.cep}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} md={9}>
                 <TextField
-                  label="Endereço"
-                  value={form.endereco}
-                  onChange={(e) => updateFormField("endereco", e.target.value)}
-                  error={!!formErrors.endereco}
-                  helperText={formErrors.endereco}
+                  label="Logradouro"
+                  value={dadosCep?.logradouro || ""}
+                  InputProps={{ readOnly: true }}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="Número"
+                  value={form.endereco.numero}
+                  onChange={(e) =>
+                    updateEnderecoField("numero", e.target.value)
+                  }
+                  error={!!formErrors.numero}
+                  helperText={formErrors.numero}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} md={9}>
+                <TextField
+                  label="Complemento (opcional)"
+                  value={form.endereco.complemento}
+                  onChange={(e) =>
+                    updateEnderecoField("complemento", e.target.value)
+                  }
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="Bairro"
+                  value={dadosCep?.bairro || ""}
+                  InputProps={{ readOnly: true }}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} md={5}>
+                <TextField
+                  label="Cidade"
+                  value={dadosCep?.localidade || ""}
+                  InputProps={{ readOnly: true }}
+                  fullWidth
+                />
+              </Grid>
+
+              <Grid item xs={12} md={3}>
+                <TextField
+                  label="UF"
+                  value={dadosCep?.uf || ""}
+                  InputProps={{ readOnly: true }}
                   fullWidth
                 />
               </Grid>

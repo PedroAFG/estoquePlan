@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Service
 public class ParcelaFinanceiraService {
@@ -62,7 +63,12 @@ public class ParcelaFinanceiraService {
                 : titulo.getDescricao();
 
         // 1) cria movimentação
-        MovimentacaoCaixa mov = movimentacaoCaixaService.criarMovimentacao(tipoMov, parcela.getValor(), descricaoMov);
+        MovimentacaoCaixa mov = movimentacaoCaixaService.criarMovimentacao(
+                tipoMov,
+                parcela.getValor(),
+                descricaoMov,
+                dataBaixa.atTime(LocalTime.now())
+        );
 
         // 2) atualiza parcela
         parcela.setDataBaixa(dataBaixa);

@@ -398,6 +398,23 @@ class ApiService {
     }
   }
 
+  // Busca de endereço na VIACEP
+async buscarEnderecoPorCep(cep) {
+  const cepLimpo = String(cep || "").replace(/\D/g, "");
+
+  if (cepLimpo.length !== 8) {
+    throw new Error("CEP inválido");
+  }
+
+  const response = await this.authenticatedRequest(`/enderecos/cep/${cepLimpo}`);
+
+  if (!response.ok) {
+    throw new Error("Erro ao buscar endereço pelo CEP");
+  }
+
+  return await response.json();
+}
+
   // Método para fazer requisições autenticadas
   async authenticatedRequest(url, options = {}) {
     const defaultOptions = {

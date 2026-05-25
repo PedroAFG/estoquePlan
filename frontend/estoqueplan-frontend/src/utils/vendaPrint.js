@@ -34,6 +34,19 @@ export function buildVendaParaImpressao(vendaBase, contexto = {}) {
 
     const cliente = getClienteById ? getClienteById(vendaBase?.clienteId) : null;
 
+    const enderecoCliente = cliente?.endereco;
+
+    const ruaCliente = enderecoCliente
+        ? [
+            enderecoCliente.logradouro,
+            enderecoCliente.numero ? `nº ${enderecoCliente.numero}` : "",
+        ]
+            .filter(Boolean)
+            .join(", ")
+        : "";
+
+    const bairroCliente = enderecoCliente?.bairro || "";
+
     const itens = (vendaBase?.itens || []).map((it) => {
         const produto = getProdutoById ? getProdutoById(it.produtoId) : null;
 
@@ -60,8 +73,8 @@ export function buildVendaParaImpressao(vendaBase, contexto = {}) {
         ...vendaBase,
         nomeCliente: vendaBase?.nomeCliente || cliente?.nome || "-",
         fone: vendaBase?.fone || cliente?.telefone || "-",
-        rua: vendaBase?.rua || cliente?.endereco || "-",
-        bairro: vendaBase?.bairro || "-",
+        rua: vendaBase?.rua || ruaCliente || "-",
+        bairro: vendaBase?.bairro || bairroCliente || "-",
         categoriaFinanceiraNome:
             vendaBase?.categoriaFinanceiraNome ||
             (getCategoriaFinanceiraNome
@@ -90,8 +103,8 @@ export function gerarHtmlComprovanteVenda(venda) {
                     <td style="text-align:right;">${escapeHtml(it.unidade || "-")}</td>
                     <td style="text-align:right;">${escapeHtml(money(it.precoUnitario))}</td>
                     <td style="text-align:right; font-weight:700;">${escapeHtml(
-                        money(it.total)
-                    )}</td>
+                money(it.total)
+            )}</td>
                 </tr>
             `
         )
@@ -356,16 +369,15 @@ export function gerarHtmlComprovanteVenda(venda) {
                             </tr>
                         </thead>
                         <tbody>
-                            ${
-                                itensHtml ||
-                                `
+                            ${itensHtml ||
+        `
                                 <tr>
                                     <td colspan="9" style="text-align:center; color:#6b7280;">
                                         Nenhum item encontrado
                                     </td>
                                 </tr>
                             `
-                            }
+        }
                         </tbody>
                     </table>
                 </div>
