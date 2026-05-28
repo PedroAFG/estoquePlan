@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import apiService from "../services/api";
 import { PatternFormat } from "react-number-format";
+import { useLocation } from "react-router-dom";
 
 import {
   Grid,
@@ -147,6 +148,8 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const location = useLocation();
+
   const [pageError, setPageError] = useState("");
   const [pageSuccess, setPageSuccess] = useState("");
   const [modalError, setModalError] = useState("");
@@ -160,6 +163,9 @@ export default function ClientesPage() {
   const [clienteEdicaoId, setClienteEdicaoId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState(emptyFormErrors);
+
+  const [openConfirmDelete, setOpenConfirmDelete] = useState(false);
+  const [clienteToDelete, setClienteToDelete] = useState(null);
 
   const total = clientes.length;
 
@@ -266,6 +272,12 @@ export default function ClientesPage() {
     setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
+
+  useEffect(() => {
+    if (location.state?.abrirModalCriacao) {
+      abrirCriacao();
+    }
+  }, [location.state]);
 
   const mapearTipoClienteParaForm = (cliente) => {
     const tipoNormalizado =
@@ -474,23 +486,32 @@ export default function ClientesPage() {
     }
   };
 
-  const excluirCliente = async (cliente) => {
-    const confirmou = window.confirm(
-      `Tem certeza que deseja excluir o cliente "${cliente.nome}"?`
-    );
+  const abrirConfirmacaoExclusao = (cliente) => {
+    setClienteToDelete(cliente);
+    setOpenConfirmDelete(true);
+  };
 
-    if (!confirmou) return;
+  const fecharConfirmacaoExclusao = () => {
+    setOpenConfirmDelete(false);
+    setClienteToDelete(null);
+  };
+
+  const confirmarExclusaoCliente = async () => {
+    if (!clienteToDelete?.id) return;
 
     try {
       setLoading(true);
       setPageError("");
       setPageSuccess("");
 
-      await apiService.deleteCliente(cliente.id);
+      await apiService.deleteCliente(clienteToDelete.id);
+
       setPageSuccess("Cliente excluído com sucesso.");
+      fecharConfirmacaoExclusao();
       await carregarClientes();
     } catch (e) {
       setPageError(e?.message || "Erro ao excluir cliente");
+    } finally {
       setLoading(false);
     }
   };
@@ -703,7 +724,7 @@ export default function ClientesPage() {
                           <Tooltip title="Excluir cliente">
                             <IconButton
                               color="error"
-                              onClick={() => excluirCliente(cliente)}
+                              onClick={() => abrirConfirmacaoExclusao(cliente)}
                             >
                               <DeleteOutlineIcon />
                             </IconButton>
@@ -965,6 +986,47 @@ export default function ClientesPage() {
           </Button>
           <Button variant="contained" onClick={salvarCliente} disabled={saving}>
             {saving ? "Salvando..." : "Salvar"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={openConfirmDelete}
+        onClose={fecharConfirmacaoExclusao}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle>
+          <Typography variant="h6" sx={{ fontWeight: 800 }}>
+            Excluir cliente
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent>
+          <Stack spacing={2}>
+            <Typography>
+              Tem certeza que deseja excluir o cliente{" "}
+              <strong>{clienteToDelete?.nome}</strong>?
+            </Typography>
+
+            <Alert severity="warning">
+              Essa ação não poderá ser desfeita.
+            </Alert>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={fecharConfirmacaoExclusao}>
+            Voltar
+          </Button>
+
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={confirmarExclusaoCliente}
+            disabled={loading}
+          >
+            Confirmar exclusão
           </Button>
         </DialogActions>
       </Dialog>

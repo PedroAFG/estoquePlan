@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import apiService from "../services/api";
+import { useLocation } from "react-router-dom";
 
 import {
   Grid,
@@ -24,13 +25,13 @@ import {
   DialogContent,
   DialogActions,
   FormControlLabel,
-  Switch,
-  Tooltip,
   FormControl,
   FormHelperText,
   InputLabel,
   Select,
   MenuItem,
+  Switch,
+  Tooltip,
   Divider,
   Box,
 } from "@mui/material";
@@ -82,6 +83,8 @@ export default function FormasPagamentoPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const location = useLocation();
+
   const [pageError, setPageError] = useState("");
   const [pageSuccess, setPageSuccess] = useState("");
   const [modalError, setModalError] = useState("");
@@ -89,7 +92,6 @@ export default function FormasPagamentoPage() {
   const [formas, setFormas] = useState([]);
   const [mostrarInativos, setMostrarInativos] = useState(false);
   const [busca, setBusca] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("TODOS");
 
   const [openModal, setOpenModal] = useState(false);
   const [modoEdicao, setModoEdicao] = useState(false);
@@ -133,13 +135,12 @@ export default function FormasPagamentoPage() {
 
     return (formas || [])
       .filter((fp) => (mostrarInativos ? true : fp?.ativo !== false))
-      .filter((fp) => (filtroTipo === "TODOS" ? true : fp?.tipo === filtroTipo))
       .filter((fp) => {
         if (!termo) return true;
         return String(fp.tipo || "").toLowerCase().includes(termo);
       })
       .sort((a, b) => Number(b.id) - Number(a.id));
-  }, [formas, busca, mostrarInativos, filtroTipo]);
+  }, [formas, busca, mostrarInativos]);
 
   const validateForm = () => {
     const novosErros = {
@@ -201,6 +202,12 @@ export default function FormasPagamentoPage() {
     setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
+
+  useEffect(() => {
+    if (location.state?.abrirModalCriacao) {
+      abrirCriacao();
+    }
+  }, [location.state]);
 
   const abrirEdicao = (forma) => {
     const ativo = forma?.ativo ?? true;
@@ -371,8 +378,8 @@ export default function FormasPagamentoPage() {
                   display: "grid",
                   gridTemplateColumns: {
                     xs: "1fr",
-                    md: "1fr 1fr 1fr auto",
-                    lg: "minmax(260px, 2fr) minmax(220px, 1.2fr) minmax(180px, 1fr) auto",
+                    md: "1fr auto",
+                    lg: "minmax(260px, 2fr) auto",
                   },
                   gap: 2,
                   alignItems: "center",
@@ -386,30 +393,9 @@ export default function FormasPagamentoPage() {
                   fullWidth
                 />
 
-                <FormControl fullWidth>
-                  <InputLabel>Tipo</InputLabel>
-                  <Select
-                    label="Tipo"
-                    value={filtroTipo}
-                    onChange={(e) => setFiltroTipo(e.target.value)}
-                  >
-                    <MenuItem value="TODOS">Todos</MenuItem>
-                    {tiposFormaPagamento.map((tipo) => (
-                      <MenuItem key={tipo} value={tipo}>
-                        {tipo.replaceAll("_", " ")}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <Box />
-
                 <Button
                   variant="text"
-                  onClick={() => {
-                    setBusca("");
-                    setFiltroTipo("TODOS");
-                  }}
+                  onClick={() => setBusca("")}
                   sx={{
                     height: 56,
                     minWidth: 100,

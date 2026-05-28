@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import apiService from "../services/api";
+import { useLocation } from "react-router-dom";
 
 import {
   Grid,
@@ -94,6 +95,8 @@ export default function Usuarios() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const location = useLocation();
+
   const [pageError, setPageError] = useState("");
   const [pageSuccess, setPageSuccess] = useState("");
   const [modalError, setModalError] = useState("");
@@ -177,6 +180,12 @@ export default function Usuarios() {
     setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
+
+  useEffect(() => {
+    if (location.state?.abrirModalCriacao) {
+      abrirCriacao();
+    }
+  }, [location.state]);
 
   const mapearUsuarioParaForm = (usuario) => ({
     nome: usuario?.nome || "",

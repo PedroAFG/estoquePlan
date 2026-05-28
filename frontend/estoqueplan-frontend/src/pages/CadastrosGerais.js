@@ -232,7 +232,7 @@ export default function CadastrosGerais() {
                     <Button
                       variant="outlined"
                       startIcon={<AddIcon />}
-                      onClick={() => navigate(card.rota)}
+                      onClick={() => navigate(card.rota, { state: { abrirModalCriacao: true } })}
                     >
                       Novo
                     </Button>

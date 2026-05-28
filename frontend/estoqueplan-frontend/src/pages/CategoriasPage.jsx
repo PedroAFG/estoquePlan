@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import AppLayout from "../layout/AppLayout";
 import apiService from "../services/api";
+import { useLocation } from "react-router-dom";
 
 import {
   Grid,
@@ -56,6 +57,7 @@ const emptyFormErrors = {
 export default function CategoriasPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const location = useLocation();
 
   const [pageError, setPageError] = useState("");
   const [pageSuccess, setPageSuccess] = useState("");
@@ -149,6 +151,12 @@ export default function CategoriasPage() {
     setFormErrors(emptyFormErrors);
     setOpenModal(true);
   };
+
+  useEffect(() => {
+    if (location.state?.abrirModalCriacao) {
+      abrirCriacao();
+    }
+  }, [location.state]);
 
   const abrirEdicao = (categoria) => {
     const ativa = categoria?.ativo !== false;
