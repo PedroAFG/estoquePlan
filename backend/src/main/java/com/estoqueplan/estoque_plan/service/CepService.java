@@ -87,4 +87,93 @@ public class CepService {
 
         return cepRepository.save(novoCep);
     }
+
+    public Cep buscarOuCriarPorDados(Cep cepEntrada) {
+        if (cepEntrada == null || cepEntrada.getCodigo() == null || cepEntrada.getCodigo().isBlank()) {
+            throw new RegraNegocioException("CEP é obrigatório.");
+        }
+
+        String codigoLimpo = cepEntrada.getCodigo().replaceAll("\\D", "");
+
+        if (codigoLimpo.length() != 8) {
+            throw new RegraNegocioException("CEP inválido.");
+        }
+
+        Optional<Cep> cepExistente = cepRepository.findByCodigo(codigoLimpo);
+
+        if (cepExistente.isPresent()) {
+            return cepExistente.get();
+        }
+
+        String uf = null;
+        String cidadeNome = null;
+        String logradouro = null;
+        String bairro = null;
+        String complemento = null;
+
+        try {
+            ViaCepDTO viaCep = viaCepService.buscarEnderecoPorCep(codigoLimpo);
+
+            uf = viaCep.getUf();
+            cidadeNome = viaCep.getLocalidade();
+            logradouro = viaCep.getLogradouro();
+            bairro = viaCep.getBairro();
+            complemento = viaCep.getComplemento();
+        } catch (Exception e) {
+            logradouro = cepEntrada.getLogradouro();
+            bairro = cepEntrada.getBairro();
+            complemento = cepEntrada.getComplemento();
+
+            if (cepEntrada.getCidade() != null) {
+                cidadeNome = cepEntrada.getCidade().getNome();
+
+                if (cepEntrada.getCidade().getEstado() != null) {
+                    uf = cepEntrada.getCidade().getEstado().getUf();
+                }
+            }
+        }
+
+        if (uf == null || uf.isBlank()) {
+            throw new RegraNegocioException("Informe a UF do endereço.");
+        }
+
+        if (cidadeNome == null || cidadeNome.isBlank()) {
+            throw new RegraNegocioException("Informe a cidade do endereço.");
+        }
+
+        Pais pais = paisRepository.findBySigla("BR")
+                .orElseGet(() -> {
+                    Pais novoPais = new Pais();
+                    novoPais.setNome("Brasil");
+                    novoPais.setSigla("BR");
+                    return paisRepository.save(novoPais);
+                });
+
+        Estado estado = estadoRepository.findByUf(uf)
+                .orElseGet(() -> {
+                    Estado novoEstado = new Estado();
+                    novoEstado.setNome(uf);
+                    novoEstado.setUf(uf);
+                    novoEstado.setPais(pais);
+                    return estadoRepository.save(novoEstado);
+                });
+
+        Cidade cidade = cidadeRepository
+                .findByNomeAndEstadoId(cidadeNome, estado.getId())
+                .orElseGet(() -> {
+                    Cidade novaCidade = new Cidade();
+                    novaCidade.setNome(cidadeNome);
+                    novaCidade.setEstado(estado);
+                    return cidadeRepository.save(novaCidade);
+                });
+
+        Cep novoCep = new Cep();
+        novoCep.setCodigo(codigoLimpo);
+        novoCep.setLogradouro(logradouro);
+        novoCep.setBairro(bairro);
+        novoCep.setComplemento(complemento);
+        novoCep.setCidade(cidade);
+
+        return cepRepository.save(novoCep);
+    }
 }

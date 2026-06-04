@@ -72,7 +72,9 @@ public class ClienteService {
 
         codigoCep = codigoCep.replaceAll("\\D", "");
 
-        Cep cepCompleto = cepService.buscarOuCriarPorCodigo(codigoCep);
+        cliente.getEndereco().getCep().setCodigo(codigoCep);
+
+        Cep cepCompleto = cepService.buscarOuCriarPorDados(cliente.getEndereco().getCep());
 
         cliente.getEndereco().setCep(cepCompleto);
     }
