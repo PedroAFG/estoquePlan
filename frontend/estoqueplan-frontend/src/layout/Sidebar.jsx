@@ -5,6 +5,7 @@ import {
   Drawer,
   IconButton,
   List,
+  ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
@@ -121,28 +122,29 @@ export default function Sidebar({
           const selected = isSelected(location.pathname, it.path);
 
           const btn = (
-            <ListItemButton
-              key={it.path}
-              selected={selected}
-              onClick={() => handleItemClick(it.path)}
-              sx={{
-                minHeight: 48,
-                justifyContent: desktopOpen ? "initial" : "center",
-                px: 2,
-              }}
-            >
-              <ListItemIcon
+            <ListItem key={it.path} disablePadding component="li">
+              <ListItemButton
+                selected={selected}
+                onClick={() => handleItemClick(it.path)}
                 sx={{
-                  minWidth: 0,
-                  mr: desktopOpen ? 2 : 0,
-                  justifyContent: "center",
+                  minHeight: 48,
+                  justifyContent: desktopOpen ? "initial" : "center",
+                  px: 2,
                 }}
               >
-                {it.icon}
-              </ListItemIcon>
+                <ListItemIcon
+                  sx={{
+                    minWidth: 0,
+                    mr: desktopOpen ? 2 : 0,
+                    justifyContent: "center",
+                  }}
+                >
+                  {it.icon}
+                </ListItemIcon>
 
-              {desktopOpen && <ListItemText primary={it.label} />}
-            </ListItemButton>
+                {desktopOpen && <ListItemText primary={it.label} />}
+              </ListItemButton>
+            </ListItem>
           );
 
           return !isMobile && !desktopOpen ? (

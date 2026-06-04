@@ -812,8 +812,10 @@ export default function FinanceiroTitulos() {
                 />
 
                 <FormControl fullWidth>
-                  <InputLabel>Tipo</InputLabel>
+                  <InputLabel id="filtro-tipo-titulo-label">Tipo</InputLabel>
                   <Select
+                    labelId="filtro-tipo-titulo-label"
+                    id="filtro-tipo-titulo"
                     label="Tipo"
                     value={filters.tipo}
                     onChange={(e) =>
@@ -830,8 +832,10 @@ export default function FinanceiroTitulos() {
                 </FormControl>
 
                 <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
+                  <InputLabel id="filtro-status-titulo-label">Status</InputLabel>
                   <Select
+                    labelId="filtro-status-titulo-label"
+                    id="filtro-status-titulo"
                     label="Status"
                     value={filters.status}
                     onChange={(e) =>
@@ -851,8 +855,12 @@ export default function FinanceiroTitulos() {
 
                 <Grid item xs={12} md={6}>
                   <FormControl fullWidth>
-                    <InputLabel>Categoria financeira</InputLabel>
+                    <InputLabel id="filtro-categoria-financeira-titulo-label">
+                      Categoria financeira
+                    </InputLabel>
                     <Select
+                      labelId="filtro-categoria-financeira-titulo-label"
+                      id="filtro-categoria-financeira-titulo"
                       label="Categoria financeira"
                       value={filters.categoriaId}
                       onChange={(e) =>
@@ -873,8 +881,10 @@ export default function FinanceiroTitulos() {
                 </Grid>
 
                 <FormControl fullWidth>
-                  <InputLabel>Período</InputLabel>
+                  <InputLabel id="filtro-periodo-titulo-label">Período</InputLabel>
                   <Select
+                    labelId="filtro-periodo-titulo-label"
+                    id="filtro-periodo-titulo"
                     label="Período"
                     value={filters.periodo}
                     onChange={(e) => {
@@ -1121,8 +1131,10 @@ export default function FinanceiroTitulos() {
             <Grid container spacing={2}>
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
-                  <InputLabel>Tipo</InputLabel>
+                  <InputLabel id="titulo-tipo-label">Tipo</InputLabel>
                   <Select
+                    labelId="titulo-tipo-label"
+                    id="titulo-tipo"
                     label="Tipo"
                     value={formCreate.tipo}
                     onChange={(e) => {
@@ -1150,8 +1162,10 @@ export default function FinanceiroTitulos() {
 
               <Grid item xs={12} md={4}>
                 <FormControl fullWidth>
-                  <InputLabel>Data de emissão</InputLabel>
+                  <InputLabel id="titulo-data-emissao-label">Data de emissão</InputLabel>
                   <Select
+                    labelId="titulo-data-emissao-label"
+                    id="titulo-data-emissao"
                     label="Data de emissão"
                     value={formCreate.tipoDataEmissao}
                     onChange={(e) => {
@@ -1227,8 +1241,12 @@ export default function FinanceiroTitulos() {
                   error={!!createErrors.categoriaId}
                   sx={{ width: "100%", minWidth: 280 }}
                 >
-                  <InputLabel>Categoria financeira</InputLabel>
+                  <InputLabel id="titulo-categoria-financeira-label">
+                    Categoria financeira
+                  </InputLabel>
                   <Select
+                    labelId="titulo-categoria-financeira-label"
+                    id="titulo-categoria-financeira"
                     label="Categoria financeira"
                     value={formCreate.categoriaId}
                     onChange={(e) => updateCreateField("categoriaId", e.target.value)}
@@ -1251,8 +1269,10 @@ export default function FinanceiroTitulos() {
                   error={!!createErrors.formaPagamentoId}
                   sx={{ width: "100%", minWidth: 280 }}
                 >
-                  <InputLabel>Forma de pagamento</InputLabel>
+                  <InputLabel id="titulo-forma-pagamento-label">Forma de pagamento</InputLabel>
                   <Select
+                    labelId="titulo-forma-pagamento-label"
+                    id="titulo-forma-pagamento"
                     label="Forma de pagamento"
                     value={formCreate.formaPagamentoId}
                     onChange={(e) => updateCreateField("formaPagamentoId", e.target.value)}

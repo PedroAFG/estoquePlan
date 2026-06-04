@@ -643,8 +643,10 @@ export default function Produtos() {
                 />
 
                 <FormControl fullWidth>
-                  <InputLabel>Categoria</InputLabel>
+                  <InputLabel id="filtro-categoria-label">Categoria</InputLabel>
                   <Select
+                    labelId="filtro-categoria-label"
+                    id="filtro-categoria"
                     label="Categoria"
                     value={filters.categoriaId}
                     onChange={(e) =>
@@ -664,8 +666,10 @@ export default function Produtos() {
                 </FormControl>
 
                 <FormControl fullWidth>
-                  <InputLabel>Unidade</InputLabel>
+                  <InputLabel id="filtro-unidade-label">Unidade</InputLabel>
                   <Select
+                    labelId="filtro-unidade-label"
+                    id="filtro-unidade"
                     label="Unidade"
                     value={filters.unidade}
                     onChange={(e) =>
@@ -685,8 +689,10 @@ export default function Produtos() {
                 </FormControl>
 
                 <FormControl fullWidth>
-                  <InputLabel>Status</InputLabel>
+                  <InputLabel id="filtro-status-label">Status</InputLabel>
                   <Select
+                    labelId="filtro-status-label"
+                    id="filtro-status"
                     label="Status"
                     value={filters.status}
                     onChange={(e) =>
@@ -897,8 +903,10 @@ export default function Produtos() {
             />
 
             <FormControl fullWidth error={!!formErrors.categoriaId}>
-              <InputLabel>Categoria</InputLabel>
+              <InputLabel id="produto-categoria-label">Categoria</InputLabel>
               <Select
+                labelId="produto-categoria-label"
+                id="produto-categoria"
                 label="Categoria"
                 value={form.categoriaId}
                 onChange={(e) => updateFormField("categoriaId", e.target.value)}

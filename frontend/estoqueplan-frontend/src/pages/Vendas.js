@@ -1253,9 +1253,11 @@ export default function Vendas() {
                                 />
 
                                 <FormControl fullWidth>
-                                    <InputLabel>Status</InputLabel>
+                                    <InputLabel id="filtro-status-venda-label">Status</InputLabel>
                                     <Select
                                         label="Status"
+                                        labelId="filtro-status-venda-label"
+                                        id="filtro-status-venda"
                                         value={filters.status}
                                         onChange={(e) =>
                                             setFilters((prev) => ({
@@ -1299,9 +1301,11 @@ export default function Vendas() {
                                 />
 
                                 <FormControl fullWidth>
-                                    <InputLabel>Período</InputLabel>
+                                    <InputLabel id="filtro-periodo-venda-label">Período</InputLabel>
                                     <Select
                                         label="Período"
+                                        labelId="filtro-periodo-venda-label"
+                                        id="filtro-periodo-venda"
                                         value={filters.periodo}
                                         onChange={(e) => {
                                             const novoPeriodo = e.target.value;
