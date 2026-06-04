@@ -60,8 +60,12 @@ const emptyForm = {
 
   endereco: {
     cep: "",
+    logradouro: "",
     numero: "",
     complemento: "",
+    bairro: "",
+    cidade: "",
+    uf: "",
   },
 
   cpf: "",
@@ -257,9 +261,20 @@ export default function ClientesPage() {
 
       setDadosCep(data);
 
+      setForm((prev) => ({
+        ...prev,
+        endereco: {
+          ...prev.endereco,
+          cep: cepLimpo,
+          logradouro: data?.logradouro || "",
+          bairro: data?.bairro || "",
+          cidade: data?.localidade || "",
+          uf: data?.uf || "",
+        },
+      }));
     } catch (e) {
       setDadosCep(null);
-      setModalError("CEP não encontrado.");
+      setModalError("CEP não encontrado. Preencha o endereço manualmente.");
     }
   };
 
@@ -410,6 +425,10 @@ export default function ClientesPage() {
       endereco: {
         numero: form.endereco?.numero || "",
         complemento: form.endereco?.complemento || "",
+        logradouro: form.endereco?.logradouro || "",
+        bairro: form.endereco?.bairro || "",
+        cidade: form.endereco?.cidade || "",
+        uf: form.endereco?.uf || "",
 
         cep: {
           codigo: somenteNumeros(form.endereco?.cep),
@@ -867,8 +886,10 @@ export default function ClientesPage() {
               <Grid item xs={12} md={9}>
                 <TextField
                   label="Logradouro"
-                  value={dadosCep?.logradouro || ""}
-                  InputProps={{ readOnly: true }}
+                  value={form.endereco.logradouro || ""}
+                  onChange={(e) => updateEnderecoField("logradouro", e.target.value)}
+                  error={!!formErrors.logradouro}
+                  helperText={formErrors.logradouro}
                   fullWidth
                 />
               </Grid>
@@ -900,8 +921,10 @@ export default function ClientesPage() {
               <Grid item xs={12} md={4}>
                 <TextField
                   label="Bairro"
-                  value={dadosCep?.bairro || ""}
-                  InputProps={{ readOnly: true }}
+                  value={form.endereco.bairro || ""}
+                  onChange={(e) => updateEnderecoField("bairro", e.target.value)}
+                  error={!!formErrors.bairro}
+                  helperText={formErrors.bairro}
                   fullWidth
                 />
               </Grid>
@@ -909,8 +932,10 @@ export default function ClientesPage() {
               <Grid item xs={12} md={5}>
                 <TextField
                   label="Cidade"
-                  value={dadosCep?.localidade || ""}
-                  InputProps={{ readOnly: true }}
+                  value={form.endereco.cidade || ""}
+                  onChange={(e) => updateEnderecoField("cidade", e.target.value)}
+                  error={!!formErrors.cidade}
+                  helperText={formErrors.cidade}
                   fullWidth
                 />
               </Grid>
@@ -918,8 +943,10 @@ export default function ClientesPage() {
               <Grid item xs={12} md={3}>
                 <TextField
                   label="UF"
-                  value={dadosCep?.uf || ""}
-                  InputProps={{ readOnly: true }}
+                  value={form.endereco.uf || ""}
+                  onChange={(e) => updateEnderecoField("uf", e.target.value.toUpperCase())}
+                  error={!!formErrors.uf}
+                  helperText={formErrors.uf}
                   fullWidth
                 />
               </Grid>
