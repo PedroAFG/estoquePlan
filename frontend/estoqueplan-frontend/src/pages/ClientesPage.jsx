@@ -307,8 +307,12 @@ export default function ClientesPage() {
       telefone: cliente?.telefone || "",
       endereco: {
         cep: cliente?.endereco?.cep?.codigo || "",
+        logradouro: cliente?.endereco?.cep?.logradouro || "",
         numero: cliente?.endereco?.numero || "",
         complemento: cliente?.endereco?.complemento || "",
+        bairro: cliente?.endereco?.cep?.bairro || "",
+        cidade: cliente?.endereco?.cep?.cidade?.nome || "",
+        uf: cliente?.endereco?.cep?.cidade?.estado?.uf || "",
       },
       cpf: cliente?.cpf || "",
       cnpj: cliente?.cnpj || "",
@@ -425,13 +429,22 @@ export default function ClientesPage() {
       endereco: {
         numero: form.endereco?.numero || "",
         complemento: form.endereco?.complemento || "",
-        logradouro: form.endereco?.logradouro || "",
-        bairro: form.endereco?.bairro || "",
-        cidade: form.endereco?.cidade || "",
-        uf: form.endereco?.uf || "",
 
         cep: {
           codigo: somenteNumeros(form.endereco?.cep),
+          logradouro: form.endereco?.logradouro || "",
+          bairro: form.endereco?.bairro || "",
+          complemento: form.endereco?.complemento || "",
+          cidade: {
+            nome: form.endereco?.cidade || "",
+            estado: {
+              uf: form.endereco?.uf || "",
+              pais: {
+                nome: "Brasil",
+                sigla: "BR",
+              },
+            },
+          },
         },
       },
       tipo: form.tipo,

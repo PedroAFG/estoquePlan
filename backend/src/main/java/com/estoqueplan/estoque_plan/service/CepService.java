@@ -149,29 +149,35 @@ public class CepService {
                     return paisRepository.save(novoPais);
                 });
 
-        Estado estado = estadoRepository.findByUf(uf)
+        final String ufFinal = uf;
+        final String cidadeNomeFinal = cidadeNome;
+        final String logradouroFinal = logradouro;
+        final String bairroFinal = bairro;
+        final String complementoFinal = complemento;
+
+        Estado estado = estadoRepository.findByUf(ufFinal)
                 .orElseGet(() -> {
                     Estado novoEstado = new Estado();
-                    novoEstado.setNome(uf);
-                    novoEstado.setUf(uf);
+                    novoEstado.setNome(ufFinal);
+                    novoEstado.setUf(ufFinal);
                     novoEstado.setPais(pais);
                     return estadoRepository.save(novoEstado);
                 });
 
         Cidade cidade = cidadeRepository
-                .findByNomeAndEstadoId(cidadeNome, estado.getId())
+                .findByNomeAndEstadoId(cidadeNomeFinal, estado.getId())
                 .orElseGet(() -> {
                     Cidade novaCidade = new Cidade();
-                    novaCidade.setNome(cidadeNome);
+                    novaCidade.setNome(cidadeNomeFinal);
                     novaCidade.setEstado(estado);
                     return cidadeRepository.save(novaCidade);
                 });
 
         Cep novoCep = new Cep();
         novoCep.setCodigo(codigoLimpo);
-        novoCep.setLogradouro(logradouro);
-        novoCep.setBairro(bairro);
-        novoCep.setComplemento(complemento);
+        novoCep.setLogradouro(logradouroFinal);
+        novoCep.setBairro(bairroFinal);
+        novoCep.setComplemento(complementoFinal);
         novoCep.setCidade(cidade);
 
         return cepRepository.save(novoCep);
