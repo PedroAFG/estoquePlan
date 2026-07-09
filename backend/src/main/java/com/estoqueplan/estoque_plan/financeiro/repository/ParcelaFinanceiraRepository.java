@@ -17,21 +17,27 @@ public interface ParcelaFinanceiraRepository extends JpaRepository<ParcelaFinanc
     Optional<ParcelaFinanceira> findTopByStatusOrderByVencimentoAsc(StatusTitulo status);
 
     @Query("""
-       select coalesce(sum(p.valor), 0)
-       from ParcelaFinanceira p
-       join p.tituloFinanceiro t
-       where t.tipo = com.estoqueplan.estoque_plan.financeiro.model.enums.TipoTitulo.A_RECEBER
-         and p.status in ('PENDENTE','ATRASADO')
-       """)
+            select coalesce(sum(p.valor), 0)
+            from ParcelaFinanceira p
+            join p.tituloFinanceiro t
+            where t.tipo = com.estoqueplan.estoque_plan.financeiro.model.enums.TipoTitulo.A_RECEBER
+              and p.status in (
+                 com.estoqueplan.estoque_plan.financeiro.model.enums.StatusTitulo.PENDENTE,
+                 com.estoqueplan.estoque_plan.financeiro.model.enums.StatusTitulo.ATRASADO
+              )
+            """)
     BigDecimal sumReceberAberto();
 
     @Query("""
-       select coalesce(sum(p.valor), 0)
-       from ParcelaFinanceira p
-       join p.tituloFinanceiro t
-       where t.tipo = com.estoqueplan.estoque_plan.financeiro.model.enums.TipoTitulo.A_PAGAR
-         and p.status in ('PENDENTE','ATRASADO')
-       """)
+            select coalesce(sum(p.valor), 0)
+            from ParcelaFinanceira p
+            join p.tituloFinanceiro t
+            where t.tipo = com.estoqueplan.estoque_plan.financeiro.model.enums.TipoTitulo.A_PAGAR
+              and p.status in (
+                 com.estoqueplan.estoque_plan.financeiro.model.enums.StatusTitulo.PENDENTE,
+                 com.estoqueplan.estoque_plan.financeiro.model.enums.StatusTitulo.ATRASADO
+              )
+            """)
     BigDecimal sumPagarAberto();
 
     @Query("""

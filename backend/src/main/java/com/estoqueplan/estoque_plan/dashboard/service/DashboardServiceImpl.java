@@ -16,7 +16,7 @@ import com.estoqueplan.estoque_plan.repository.ItemVendaRepository;
 import com.estoqueplan.estoque_plan.repository.ProdutoRepository;
 import com.estoqueplan.estoque_plan.repository.VendaRepository;
 import org.springframework.stereotype.Service;
-
+import com.estoqueplan.estoque_plan.financeiro.service.TituloFinanceiroService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -32,19 +32,22 @@ public class DashboardServiceImpl implements DashboardService {
     private final ItemVendaRepository itemVendaRepository;
     private final ParcelaFinanceiraRepository parcelaFinanceiraRepository;
     private final MovimentacaoCaixaRepository movimentacaoCaixaRepository;
+    private final TituloFinanceiroService tituloFinanceiroService;
 
     public DashboardServiceImpl(
             ProdutoRepository produtoRepository,
             VendaRepository vendaRepository,
             ItemVendaRepository itemVendaRepository,
             ParcelaFinanceiraRepository parcelaFinanceiraRepository,
-            MovimentacaoCaixaRepository movimentacaoCaixaRepository
+            MovimentacaoCaixaRepository movimentacaoCaixaRepository,
+            TituloFinanceiroService tituloFinanceiroService
     ) {
         this.produtoRepository = produtoRepository;
         this.vendaRepository = vendaRepository;
         this.itemVendaRepository = itemVendaRepository;
         this.parcelaFinanceiraRepository = parcelaFinanceiraRepository;
         this.movimentacaoCaixaRepository = movimentacaoCaixaRepository;
+        this.tituloFinanceiroService = tituloFinanceiroService;
     }
 
     @Override
@@ -134,6 +137,8 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public DashboardFinanceiroDTO obterIndicadoresFinanceiros(LocalDate inicio, LocalDate fim) {
         validarPeriodo(inicio, fim);
+
+        tituloFinanceiroService.atualizarStatusAtrasados();
 
         LocalDate dataInicio = resolverInicio(inicio);
         LocalDate dataFim = resolverFim(fim);

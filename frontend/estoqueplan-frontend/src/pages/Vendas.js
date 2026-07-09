@@ -392,9 +392,10 @@ export default function Vendas() {
     const openCreate = () => {
         setEditing(null);
         setForm({
-            emptyForm,
+            ...emptyForm,
             tipoDataVenda: "HOJE",
             dataDaVenda: dayjs().format("YYYY-MM-DD"),
+            primeiroVencimento: dayjs().format("YYYY-MM-DD"),
         });
         setFormErrors(emptyFormErrors);
         setFormError("");
@@ -403,6 +404,12 @@ export default function Vendas() {
 
     const openEdit = (v) => {
         const st = v.status || "ATIVA";
+
+        if (!isAdmin) {
+            setPageError("A edição de vendas está disponível apenas para administradores.");
+            return;
+        }
+
         if (st !== "ATIVA") {
             setPageError("Venda cancelada não pode ser editada.");
             return;
@@ -424,6 +431,11 @@ export default function Vendas() {
         setEditing(v);
 
         setForm({
+            tipoDataVenda: "OUTRA_DATA",
+            dataDaVenda: v.dataDaVenda
+                ? dayjs(v.dataDaVenda).format("YYYY-MM-DD")
+                : dayjs().format("YYYY-MM-DD"),
+
             clienteId: v.clienteId ?? "",
             cepEntrega: v.cepEntrega ?? "",
             rua: v.rua ?? "",
@@ -864,6 +876,10 @@ export default function Vendas() {
         try {
             setFormError("");
 
+            if (editing?.id && !isAdmin) {
+                setFormError("A edição de vendas está disponível apenas para administradores.");
+                return;
+            }
             const isValid = validateForm();
             if (!isValid) {
                 if (!formError) {
@@ -873,6 +889,9 @@ export default function Vendas() {
             }
 
             setLoading(true);
+
+            const dataVendaBase =
+                form.dataDaVenda || dayjs().format("YYYY-MM-DD");
 
             const payload = {
                 clienteId: Number(form.clienteId),
@@ -887,7 +906,7 @@ export default function Vendas() {
                 dataDaVenda:
                     form.tipoDataVenda === "HOJE"
                         ? dayjs().format("YYYY-MM-DDTHH:mm:ss")
-                        : `${form.dataDaVenda}T${dayjs().format("HH:mm:ss")}`,
+                        : `${dataVendaBase}T${dayjs().format("HH:mm:ss")}`,
                 observacao: String(form.observacao || "").trim(),
                 desconto: form.desconto === "" ? 0 : Number(form.desconto),
                 adicional: form.adicional === "" ? 0 : Number(form.adicional),
@@ -911,6 +930,7 @@ export default function Vendas() {
             };
 
             let saved;
+
             if (editing?.id) {
                 saved = await apiService.updateVenda(editing.id, payload);
                 setVendas((prev) =>
@@ -1152,6 +1172,8 @@ export default function Vendas() {
 
     const labelShrinkWhenFilled = (valor) =>
         String(valor || "").trim() ? { shrink: true } : undefined;
+
+    const isEditingVenda = Boolean(editing);
 
     return (
         <AppLayout title="Vendas">
@@ -1483,12 +1505,18 @@ export default function Vendas() {
                                                         </Tooltip>
 
                                                         <Tooltip
-                                                            title={ativa ? "Editar" : "Venda cancelada"}
+                                                            title={
+                                                                !ativa
+                                                                    ? "Venda cancelada"
+                                                                    : !isAdmin
+                                                                        ? "Edição disponível apenas para administradores"
+                                                                        : "Editar dados do cliente"
+                                                            }
                                                         >
                                                             <span>
                                                                 <IconButton
                                                                     onClick={() => openEdit(v)}
-                                                                    disabled={!ativa}
+                                                                    disabled={!ativa || !isAdmin}
                                                                 >
                                                                     <EditIcon />
                                                                 </IconButton>
@@ -1558,6 +1586,13 @@ export default function Vendas() {
                         {formError && (
                             <Alert severity="error" onClose={() => setFormError("")}>
                                 {formError}
+                            </Alert>
+                        )}
+
+                        {isEditingVenda && (
+                            <Alert severity="info">
+                                Edição limitada aos dados do cliente e entrega. Itens, valores, estoque,
+                                data da venda e financeiro permanecem bloqueados.
                             </Alert>
                         )}
 
@@ -1632,6 +1667,7 @@ export default function Vendas() {
                                         <Select
                                             label="Data da venda"
                                             value={form.tipoDataVenda}
+                                            disabled={isEditingVenda}
                                             onChange={(e) => {
                                                 const tipo = e.target.value;
 
@@ -1657,6 +1693,7 @@ export default function Vendas() {
                                             label="Selecionar data"
                                             type="date"
                                             value={form.dataDaVenda}
+                                            disabled={isEditingVenda}
                                             onChange={(e) => updateFormField("dataDaVenda", e.target.value)}
                                             error={!!formErrors.dataDaVenda}
                                             helperText={formErrors.dataDaVenda}
@@ -1802,7 +1839,11 @@ export default function Vendas() {
                                 Itens da venda
                             </Typography>
 
-                            <Button onClick={addItem} startIcon={<AddIcon />}>
+                            <Button
+                                onClick={addItem}
+                                startIcon={<AddIcon />}
+                                disabled={isEditingVenda}
+                            >
                                 Adicionar item
                             </Button>
                         </Stack>
@@ -1836,6 +1877,7 @@ export default function Vendas() {
                                                     <FormControl
                                                         fullWidth
                                                         error={!!itemError.categoriaId}
+                                                        disabled={isEditingVenda}
                                                         sx={categoriaSelectSx}
                                                     >
                                                         <InputLabel>Categoria</InputLabel>
@@ -1863,7 +1905,7 @@ export default function Vendas() {
                                                     <FormControl
                                                         fullWidth
                                                         error={!!itemError.produtoId}
-                                                        disabled={!it.categoriaId}
+                                                        disabled={isEditingVenda || !it.categoriaId}
                                                         sx={produtoSelectSx}
                                                     >
                                                         <InputLabel>Produto</InputLabel>
@@ -1903,6 +1945,7 @@ export default function Vendas() {
                                                     <TextField
                                                         label="Qtd"
                                                         type="number"
+                                                        disabled={isEditingVenda}
                                                         value={it.quantidade}
                                                         onChange={(e) =>
                                                             updateItemField(idx, "quantidade", e.target.value)
@@ -1921,6 +1964,7 @@ export default function Vendas() {
                                                 <Grid item xs={12} md={2}>
                                                     <TextField
                                                         label="Un"
+                                                        disabled={isEditingVenda}
                                                         value={it.unidade}
                                                         onChange={(e) =>
                                                             updateItemField(idx, "unidade", e.target.value)
@@ -1935,6 +1979,7 @@ export default function Vendas() {
                                                 <Grid item xs={12} md={3}>
                                                     <TextField
                                                         label="Preço Unit."
+                                                        disabled={isEditingVenda}
                                                         type="number"
                                                         inputProps={{ min: 0, step: 0.01 }}
                                                         value={it.precoUnitario}
@@ -1973,6 +2018,7 @@ export default function Vendas() {
                                                 <Grid item xs={12} md={2}>
                                                     <TextField
                                                         label="Bitola"
+                                                        disabled={isEditingVenda}
                                                         value={it.bitola}
                                                         onChange={(e) =>
                                                             updateItemField(idx, "bitola", e.target.value)
@@ -1987,6 +2033,7 @@ export default function Vendas() {
                                                 <Grid item xs={12} md={2}>
                                                     <TextField
                                                         label="Comprimento"
+                                                        disabled={isEditingVenda}
                                                         value={it.comprimento}
                                                         onChange={(e) =>
                                                             updateItemField(idx, "comprimento", e.target.value)
@@ -2005,6 +2052,7 @@ export default function Vendas() {
                                                         fullWidth
                                                         sx={{ height: 56 }}
                                                         onClick={() => removeItem(idx)}
+                                                        disabled={isEditingVenda}
                                                     >
                                                         Remover
                                                     </Button>
@@ -2022,6 +2070,7 @@ export default function Vendas() {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Desconto"
+                                        disabled={isEditingVenda}
                                         type="number"
                                         inputProps={{ min: 0, step: 0.01 }}
                                         value={form.desconto}
@@ -2037,6 +2086,7 @@ export default function Vendas() {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Adicional"
+                                        disabled={isEditingVenda}
                                         type="number"
                                         inputProps={{ min: 0, step: 0.01 }}
                                         value={form.adicional}
@@ -2052,6 +2102,7 @@ export default function Vendas() {
                                 <Grid item xs={12} md={3}>
                                     <TextField
                                         label="Frete"
+                                        disabled={isEditingVenda}
                                         type="number"
                                         inputProps={{ min: 0, step: 0.01 }}
                                         value={form.frete}
@@ -2088,6 +2139,7 @@ export default function Vendas() {
                                         control={
                                             <Checkbox
                                                 checked={form.tipoPagamento === "AVISTA"}
+                                                disabled={isEditingVenda}
                                                 onChange={() => handleTipoPagamentoChange("AVISTA")}
                                             />
                                         }
@@ -2098,6 +2150,7 @@ export default function Vendas() {
                                         control={
                                             <Checkbox
                                                 checked={form.tipoPagamento === "PARCELADO"}
+                                                disabled={isEditingVenda}
                                                 onChange={() => handleTipoPagamentoChange("PARCELADO")}
                                             />
                                         }
@@ -2111,6 +2164,7 @@ export default function Vendas() {
                                             fullWidth
                                             size="medium"
                                             error={!!formErrors.categoriaFinanceiraId}
+                                            disabled={isEditingVenda}
                                             sx={financeiroSelectSx}
                                         >
                                             <InputLabel>Categoria financeira</InputLabel>
@@ -2142,6 +2196,7 @@ export default function Vendas() {
                                             fullWidth
                                             size="medium"
                                             error={!!formErrors.formaPagamentoId}
+                                            disabled={isEditingVenda}
                                             sx={financeiroSelectSx}
                                         >
                                             <InputLabel>Forma de pagamento</InputLabel>
@@ -2172,6 +2227,7 @@ export default function Vendas() {
                                         <TextField
                                             label="Descrição do título"
                                             value={form.descricaoTitulo}
+                                            disabled={isEditingVenda}
                                             onChange={(e) =>
                                                 updateFormField(
                                                     "descricaoTitulo",
@@ -2200,7 +2256,7 @@ export default function Vendas() {
                                             error={!!formErrors.numeroParcelas}
                                             helperText={formErrors.numeroParcelas}
                                             fullWidth
-                                            disabled={form.tipoPagamento === "AVISTA"}
+                                            disabled={isEditingVenda || form.tipoPagamento === "AVISTA"}
                                             InputLabelProps={labelShrinkWhenFilled(form.numeroParcelas)}
                                         />
                                     </Grid>
@@ -2220,7 +2276,7 @@ export default function Vendas() {
                                             helperText={formErrors.primeiroVencimento}
                                             fullWidth
                                             InputLabelProps={{ shrink: true }}
-                                            disabled={form.tipoPagamento === "AVISTA"}
+                                            disabled={isEditingVenda || form.tipoPagamento === "AVISTA"}
                                         />
                                     </Grid>
 
@@ -2238,6 +2294,7 @@ export default function Vendas() {
                                             fullWidth
                                             InputLabelProps={labelShrinkWhenFilled(form.intervaloDias)}
                                             disabled={
+                                                isEditingVenda ||
                                                 form.tipoPagamento === "AVISTA" ||
                                                 Number(form.numeroParcelas || 1) <= 1
                                             }

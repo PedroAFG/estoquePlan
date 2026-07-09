@@ -5,7 +5,6 @@ import com.estoqueplan.estoque_plan.financeiro.model.enums.TipoTitulo;
 import com.estoqueplan.estoque_plan.model.Venda;
 import jakarta.persistence.*;
 import lombok.Data;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;

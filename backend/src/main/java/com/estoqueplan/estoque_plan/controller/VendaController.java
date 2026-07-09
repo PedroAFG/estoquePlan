@@ -51,6 +51,7 @@ public class VendaController {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PutMapping("/{id}")
     public ResponseEntity<VendaDTO> atualizarVenda(@PathVariable Long id, @RequestBody VendaDTO vendaDTO) {
         VendaDTO vendaAtualizada = vendaService.atualizarVenda(id, vendaDTO);

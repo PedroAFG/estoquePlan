@@ -23,6 +23,11 @@ public class VendaDTO {
     private BigDecimal frete;
     private List<ItemVendaDTO> itens;
     private StatusVenda status;
+    private String cepEntrega;
+    private String numeroEntrega;
+    private String complementoEntrega;
+    private String cidadeEntrega;
+    private String ufEntrega;
     // getters e setters
 
     // - dados do financeiro pra gerar titulo conforme a criacao da venda

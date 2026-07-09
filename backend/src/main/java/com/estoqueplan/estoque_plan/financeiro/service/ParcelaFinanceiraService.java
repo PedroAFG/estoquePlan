@@ -14,7 +14,7 @@ import com.estoqueplan.estoque_plan.financeiro.repository.TituloFinanceiroReposi
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.time.ZoneId;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -29,6 +29,11 @@ public class ParcelaFinanceiraService {
 
     @Autowired
     private MovimentacaoCaixaService movimentacaoCaixaService;
+
+    @Autowired
+    private TituloFinanceiroService tituloFinanceiroService;
+
+    private static final ZoneId ZONA_SISTEMA = ZoneId.of("America/Sao_Paulo");
 
     @Transactional
     public ParcelaFinanceira baixarParcela(Long parcelaId, BaixaParcelaDTO dto) {
@@ -67,7 +72,7 @@ public class ParcelaFinanceiraService {
                 tipoMov,
                 parcela.getValor(),
                 descricaoMov,
-                dataBaixa.atTime(LocalTime.now())
+                dataBaixa.atTime(LocalTime.now(ZONA_SISTEMA))
         );
 
         // 2) atualiza parcela
@@ -78,11 +83,7 @@ public class ParcelaFinanceiraService {
         ParcelaFinanceira parcelaSalva = parcelaFinanceiraRepository.save(parcela);
 
         // 3) atualiza status do título baseado nas parcelas
-        boolean todasPagas = titulo.getParcelas().stream()
-                .allMatch(p -> p.getStatus() == StatusTitulo.PAGO_RECEBIDO);
-
-        titulo.setStatus(todasPagas ? StatusTitulo.PAGO_RECEBIDO : StatusTitulo.PENDENTE);
-        tituloFinanceiroRepository.save(titulo);
+        tituloFinanceiroService.recalcularStatusTitulo(titulo.getId());
 
         return parcelaSalva;
     }

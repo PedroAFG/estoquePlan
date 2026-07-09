@@ -4,7 +4,6 @@ import com.estoqueplan.estoque_plan.financeiro.model.enums.StatusTitulo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 

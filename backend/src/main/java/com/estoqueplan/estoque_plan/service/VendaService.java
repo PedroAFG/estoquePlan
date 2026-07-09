@@ -89,8 +89,13 @@ public class VendaService {
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Cliente não encontrado")));
         }
 
+        venda.setCepEntrega(vendaDTO.getCepEntrega());
         venda.setRua(vendaDTO.getRua());
+        venda.setNumeroEntrega(vendaDTO.getNumeroEntrega());
+        venda.setComplementoEntrega(vendaDTO.getComplementoEntrega());
         venda.setBairro(vendaDTO.getBairro());
+        venda.setCidadeEntrega(vendaDTO.getCidadeEntrega());
+        venda.setUfEntrega(vendaDTO.getUfEntrega());
         venda.setFone(vendaDTO.getFone());
         venda.setObservacao(vendaDTO.getObservacao());
         venda.setDataDaVenda(vendaDTO.getDataDaVenda());
@@ -172,20 +177,14 @@ public class VendaService {
 
     @Transactional
     public VendaDTO atualizarVenda(Long id, VendaDTO vendaDTO) {
+        if (vendaDTO == null) {
+            throw new RegraNegocioException("Os dados da venda não podem ser nulos.");
+        }
         Venda venda = vendaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Venda não encontrada para o ID: " + id));
 
         if (venda.getStatus() == StatusVenda.CANCELADA) {
             throw new RegraNegocioException("Não é possível alterar uma venda cancelada");
-        }
-
-        if (vendaDTO.getItens() == null || vendaDTO.getItens().isEmpty()) {
-            throw new RegraNegocioException("A venda precisa ter pelo menos 1 item");
-        }
-
-        // devolve estoque antigo
-        for (ItemVenda itemAntigo : venda.getItens()) {
-            devolverEstoque(itemAntigo.getProduto(), itemAntigo.getQuantidade());
         }
 
         if (vendaDTO.getClienteId() != null) {
@@ -195,69 +194,15 @@ public class VendaService {
             venda.setCliente(null);
         }
 
+        venda.setCepEntrega(vendaDTO.getCepEntrega());
         venda.setRua(vendaDTO.getRua());
+        venda.setNumeroEntrega(vendaDTO.getNumeroEntrega());
+        venda.setComplementoEntrega(vendaDTO.getComplementoEntrega());
         venda.setBairro(vendaDTO.getBairro());
+        venda.setCidadeEntrega(vendaDTO.getCidadeEntrega());
+        venda.setUfEntrega(vendaDTO.getUfEntrega());
         venda.setFone(vendaDTO.getFone());
         venda.setObservacao(vendaDTO.getObservacao());
-        venda.setDesconto(vendaDTO.getDesconto());
-        venda.setAdicional(vendaDTO.getAdicional());
-        venda.setFrete(vendaDTO.getFrete());
-
-        venda.getItens().clear();
-
-        List<ItemVenda> novosItens = new ArrayList<>();
-        BigDecimal valorTotalItens = BigDecimal.ZERO;
-
-        for (ItemVendaDTO itemDTO : vendaDTO.getItens()) {
-            if (itemDTO.getProdutoId() == null) {
-                throw new RegraNegocioException("Produto ID do item é obrigatório.");
-            }
-
-            if (itemDTO.getQuantidade() == null || itemDTO.getQuantidade() <= 0) {
-                throw new RegraNegocioException("Quantidade do item deve ser maior que zero.");
-            }
-
-            if (itemDTO.getPrecoUnitario() == null || itemDTO.getPrecoUnitario().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new RegraNegocioException("Preço unitário do item deve ser maior que zero.");
-            }
-
-            Produto produto = produtoRepository.findById(itemDTO.getProdutoId())
-                    .orElseThrow(() -> new RecursoNaoEncontradoException("Produto não encontrado"));
-
-            validarEstoque(produto, itemDTO.getQuantidade());
-            baixarEstoque(produto, itemDTO.getQuantidade());
-
-            ItemVenda item = new ItemVenda();
-            item.setVenda(venda);
-            item.setProduto(produto);
-            item.setQuantidade(itemDTO.getQuantidade());
-            item.setUnidade(itemDTO.getUnidade());
-            item.setBitola(itemDTO.getBitola());
-            item.setComprimento(itemDTO.getComprimento());
-            item.setPrecoUnitario(itemDTO.getPrecoUnitario());
-
-            BigDecimal totalItem = itemDTO.getPrecoUnitario()
-                    .multiply(BigDecimal.valueOf(itemDTO.getQuantidade()));
-
-            item.setTotal(totalItem);
-
-            valorTotalItens = valorTotalItens.add(totalItem);
-            novosItens.add(item);
-        }
-
-        venda.getItens().addAll(novosItens);
-
-        BigDecimal desconto = venda.getDesconto() != null ? venda.getDesconto() : BigDecimal.ZERO;
-        BigDecimal adicional = venda.getAdicional() != null ? venda.getAdicional() : BigDecimal.ZERO;
-        BigDecimal frete = venda.getFrete() != null ? venda.getFrete() : BigDecimal.ZERO;
-
-        BigDecimal valorFinal = valorTotalItens.subtract(desconto).add(adicional).add(frete);
-
-        if (valorFinal.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RegraNegocioException("O valor final da venda deve ser maior que zero.");
-        }
-
-        venda.setValorTotal(valorFinal);
 
         Venda vendaSalva = vendaRepository.save(venda);
         return converterVendaParaDTO(vendaSalva);
@@ -330,8 +275,13 @@ public class VendaService {
             dto.setNomeCliente(venda.getCliente().getNome());
         }
 
+        dto.setCepEntrega(venda.getCepEntrega());
         dto.setRua(venda.getRua());
+        dto.setNumeroEntrega(venda.getNumeroEntrega());
+        dto.setComplementoEntrega(venda.getComplementoEntrega());
         dto.setBairro(venda.getBairro());
+        dto.setCidadeEntrega(venda.getCidadeEntrega());
+        dto.setUfEntrega(venda.getUfEntrega());
         dto.setFone(venda.getFone());
         dto.setObservacao(venda.getObservacao());
         dto.setDataDaVenda(venda.getDataDaVenda());

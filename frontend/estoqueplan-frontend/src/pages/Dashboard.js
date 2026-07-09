@@ -218,6 +218,21 @@ export default function Dashboard() {
   const [view, setView] = useState("estoque");
   const [period, setPeriod] = useState("month");
 
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const carregarUsuarioLogado = async () => {
+      try {
+        const me = await apiService.getMe();
+        setIsAdmin(me?.permissao === "ADMINISTRADOR");
+      } catch {
+        setIsAdmin(false);
+      }
+    };
+
+    carregarUsuarioLogado();
+  }, []);
+
   const [customRange, setCustomRange] = useState({
     inicio: "",
     fim: "",
@@ -237,6 +252,12 @@ export default function Dashboard() {
   const cacheKey = useMemo(() => {
     return `${view}_${appliedRange.inicio || ""}_${appliedRange.fim || ""}`;
   }, [view, appliedRange]);
+
+  const viewOptionsPermitidas = useMemo(() => {
+    if (isAdmin) return VIEW_OPTIONS;
+
+    return VIEW_OPTIONS.filter((option) => option.value !== "financeiro");
+  }, [isAdmin]);
 
   const [cache, setCache] = useState({});
 
@@ -271,6 +292,12 @@ export default function Dashboard() {
         }
 
         if (view === "financeiro") {
+          if (!isAdmin) {
+            setError("Indicadores financeiros disponíveis apenas para administradores.");
+            setLoading(false);
+            return;
+          }
+
           result = await apiService.getDashboardFinanceiro(appliedRange);
           setFinanceiroData(result);
         }
@@ -287,12 +314,18 @@ export default function Dashboard() {
         setLoading(false);
       }
     },
-    [view, appliedRange, cache, cacheKey]
+    [view, appliedRange, cache, cacheKey, isAdmin]
   );
 
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!isAdmin && view === "financeiro") {
+      setView("estoque");
+    }
+  }, [isAdmin, view]);
 
   const handleApplyPeriod = () => {
     if (period === "custom") {
@@ -301,7 +334,7 @@ export default function Dashboard() {
         return;
       }
 
-      if (dayjs(customRange.inicio).isAfter(dayjs(customRange.fim))) {}
+      if (dayjs(customRange.inicio).isAfter(dayjs(customRange.fim))) { }
     }
 
     setError("");
@@ -415,7 +448,7 @@ export default function Dashboard() {
                     label="Visão do dashboard"
                     onChange={(e) => setView(e.target.value)}
                   >
-                    {VIEW_OPTIONS.map((option) => (
+                    {viewOptionsPermitidas.map((option) => (
                       <MenuItem key={option.value} value={option.value}>
                         {option.label}
                       </MenuItem>

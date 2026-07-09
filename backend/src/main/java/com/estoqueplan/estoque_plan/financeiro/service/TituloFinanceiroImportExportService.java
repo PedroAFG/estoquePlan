@@ -23,7 +23,7 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
+import com.estoqueplan.estoque_plan.financeiro.model.enums.StatusTitulo;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,6 +36,29 @@ public class TituloFinanceiroImportExportService {
     private final CategoriaFinanceiraRepository categoriaRepository;
     private final FormaPagamentoRepository formaPagamentoRepository;
     private final TituloFinanceiroService tituloFinanceiroService;
+
+    private BigDecimal calcularValorAberto(TituloFinanceiro titulo) {
+        if (titulo.getParcelas() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        return titulo.getParcelas().stream()
+                .filter(p -> p.getStatus() == StatusTitulo.PENDENTE
+                        || p.getStatus() == StatusTitulo.ATRASADO)
+                .map(p -> p.getValor() != null ? p.getValor() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calcularValorBaixado(TituloFinanceiro titulo) {
+        if (titulo.getParcelas() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        return titulo.getParcelas().stream()
+                .filter(p -> p.getStatus() == StatusTitulo.PAGO_RECEBIDO)
+                .map(p -> p.getValor() != null ? p.getValor() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 
     public TituloFinanceiroImportExportService(
             TituloFinanceiroRepository tituloRepository,
@@ -50,13 +73,16 @@ public class TituloFinanceiroImportExportService {
     }
 
     public byte[] exportarXlsx() {
+
+        tituloFinanceiroService.atualizarStatusAtrasados();
+
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
             Sheet sheet = workbook.createSheet("Títulos");
 
             String[] colunas = {
-                    "ID", "Tipo", "Descrição", "Valor Total", "Categoria",
+                    "ID", "Tipo", "Descrição", "Valor Total", "Valor em Aberto", "Valor Baixado", "Categoria",
                     "Status", "Data Emissão", "Parcelas", "Venda ID"
             };
 
@@ -74,12 +100,16 @@ public class TituloFinanceiroImportExportService {
                 row.createCell(0).setCellValue(t.getId() != null ? t.getId() : 0);
                 row.createCell(1).setCellValue(t.getTipo() != null ? t.getTipo().name() : "");
                 row.createCell(2).setCellValue(valorTexto(t.getDescricao()));
+
                 row.createCell(3).setCellValue(t.getValorTotal() != null ? t.getValorTotal().doubleValue() : 0);
-                row.createCell(4).setCellValue(t.getCategoria() != null ? t.getCategoria().getNome() : "");
-                row.createCell(5).setCellValue(t.getStatus() != null ? t.getStatus().name() : "");
-                row.createCell(6).setCellValue(t.getDataEmissao() != null ? t.getDataEmissao().toString() : "");
-                row.createCell(7).setCellValue(t.getParcelas() != null ? t.getParcelas().size() : 0);
-                row.createCell(8).setCellValue(t.getVenda() != null ? t.getVenda().getId() : 0);
+                row.createCell(4).setCellValue(calcularValorAberto(t).doubleValue());
+                row.createCell(5).setCellValue(calcularValorBaixado(t).doubleValue());
+
+                row.createCell(6).setCellValue(t.getCategoria() != null ? t.getCategoria().getNome() : "");
+                row.createCell(7).setCellValue(t.getStatus() != null ? t.getStatus().name() : "");
+                row.createCell(8).setCellValue(t.getDataEmissao() != null ? t.getDataEmissao().toString() : "");
+                row.createCell(9).setCellValue(t.getParcelas() != null ? t.getParcelas().size() : 0);
+                row.createCell(10).setCellValue(t.getVenda() != null ? t.getVenda().getId() : 0);
             }
 
             for (int i = 0; i < colunas.length; i++) {
@@ -94,6 +124,8 @@ public class TituloFinanceiroImportExportService {
     }
 
     public byte[] exportarPdf() {
+        tituloFinanceiroService.atualizarStatusAtrasados();
+
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Document document = new Document(PageSize.A4.rotate());
             PdfWriter.getInstance(document, out);
@@ -108,14 +140,15 @@ public class TituloFinanceiroImportExportService {
             titulo.setSpacingAfter(16);
             document.add(titulo);
 
-            PdfPTable table = new PdfPTable(7);
+            PdfPTable table = new PdfPTable(8);
             table.setWidthPercentage(100);
-            table.setWidths(new float[]{1.2f, 2f, 4f, 2f, 3f, 2f, 2f});
+            table.setWidths(new float[]{1.2f, 2f, 4f, 2f, 2f, 3f, 2f, 2f});
 
             adicionarHeader(table, "ID");
             adicionarHeader(table, "Tipo");
             adicionarHeader(table, "Descrição");
-            adicionarHeader(table, "Valor");
+            adicionarHeader(table, "Valor Total");
+            adicionarHeader(table, "Valor Aberto");
             adicionarHeader(table, "Categoria");
             adicionarHeader(table, "Status");
             adicionarHeader(table, "Parcelas");
@@ -125,6 +158,7 @@ public class TituloFinanceiroImportExportService {
                 table.addCell(new Phrase(t.getTipo() != null ? t.getTipo().name() : "-", textoFont));
                 table.addCell(new Phrase(valorTexto(t.getDescricao()), textoFont));
                 table.addCell(new Phrase(formatarDecimal(t.getValorTotal()), textoFont));
+                table.addCell(new Phrase(formatarDecimal(calcularValorAberto(t)), textoFont));
                 table.addCell(new Phrase(t.getCategoria() != null ? t.getCategoria().getNome() : "-", textoFont));
                 table.addCell(new Phrase(t.getStatus() != null ? t.getStatus().name() : "-", textoFont));
                 table.addCell(new Phrase(String.valueOf(t.getParcelas() != null ? t.getParcelas().size() : 0), textoFont));

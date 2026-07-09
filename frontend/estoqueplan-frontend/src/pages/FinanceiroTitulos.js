@@ -397,6 +397,13 @@ export default function FinanceiroTitulos() {
   };
 
   const handleOpenCreate = () => {
+    if (!isAdmin) {
+      setPageError(
+        "A criação manual de títulos financeiros está disponível apenas para administradores. Colaboradores devem gerar títulos por meio de vendas."
+      );
+      return;
+    }
+
     setCreateError("");
     setCreateSuccess("");
     setCreateErrors(emptyCreateErrors);
@@ -413,6 +420,13 @@ export default function FinanceiroTitulos() {
   };
 
   const handleCreate = async () => {
+    if (!isAdmin) {
+      setCreateError(
+        "A criação manual de títulos financeiros está disponível apenas para administradores."
+      );
+      return;
+    }
+
     try {
       setCreateError("");
       setCreateSuccess("");
@@ -455,7 +469,7 @@ export default function FinanceiroTitulos() {
     setBaixaSuccess("");
     setBaixaTarget({ tituloId, parcelaId });
     setFormBaixa({
-      dataBaixa: new Date().toISOString().slice(0, 10),
+      dataBaixa: dayjs().format("YYYY-MM-DD"),
       descricao: "",
     });
     setOpenBaixa(true);
@@ -595,6 +609,7 @@ export default function FinanceiroTitulos() {
     { value: "month", label: "Mês atual" },
     { value: "last30", label: "Últimos 30 dias" },
     { value: "custom", label: "Período personalizado" },
+    { value: "all", label: "Todos os períodos" },
   ];
 
   function resolvePeriodDates(periodKey, customRange) {
@@ -637,6 +652,12 @@ export default function FinanceiroTitulos() {
         return {
           dataInicial: customRange.dataInicial || "",
           dataFinal: customRange.dataFinal || "",
+        };
+
+      case "all":
+        return {
+          dataInicial: "",
+          dataFinal: "",
         };
 
       default:
@@ -758,16 +779,21 @@ export default function FinanceiroTitulos() {
                     flexWrap="wrap"
                     useFlexGap
                   >
-                    <Button
-                      variant="contained"
-                      startIcon={<AddIcon />}
-                      onClick={handleOpenCreate}
-                    >
-                      Novo título
-                    </Button>
-                    <Button variant="contained" onClick={() => setOpenImport(true)}>
-                      Importar
-                    </Button>
+                    {isAdmin && (
+                      <>
+                        <Button
+                          variant="contained"
+                          startIcon={<AddIcon />}
+                          onClick={handleOpenCreate}
+                        >
+                          Novo título
+                        </Button>
+
+                        <Button variant="contained" onClick={() => setOpenImport(true)}>
+                          Importar
+                        </Button>
+                      </>
+                    )}
 
                     <Button variant="contained" onClick={handleExportarXlsx}>
                       Exportar XLSX
@@ -881,11 +907,11 @@ export default function FinanceiroTitulos() {
                 </Grid>
 
                 <FormControl fullWidth>
-                  <InputLabel id="filtro-periodo-titulo-label">Período</InputLabel>
+                  <InputLabel id="filtro-periodo-titulo-label">Período de emissão</InputLabel>
                   <Select
                     labelId="filtro-periodo-titulo-label"
                     id="filtro-periodo-titulo"
-                    label="Período"
+                    label="Período de emissão"
                     value={filters.periodo}
                     onChange={(e) => {
                       const novoPeriodo = e.target.value;
@@ -1035,9 +1061,15 @@ export default function FinanceiroTitulos() {
                   <TableBody>
                     {titulosFiltrados.map((t) => {
                       const parcelas = t.parcelas || [];
+
                       const pagas = parcelas.filter(
                         (p) => p.status === "PAGO_RECEBIDO"
                       ).length;
+
+                      const atrasadas = parcelas.filter(
+                        (p) => p.status === "ATRASADO"
+                      ).length;
+
                       const totalP = parcelas.length;
 
                       return (
@@ -1050,7 +1082,11 @@ export default function FinanceiroTitulos() {
                           <TableCell align="right">{money(t.valorTotal)}</TableCell>
                           <TableCell align="center">{chipStatus(t.status)}</TableCell>
                           <TableCell align="center">
-                            {totalP ? `${pagas} de ${totalP}` : "-"}
+                            {totalP
+                              ? filters.status === "ATRASADO"
+                                ? `${atrasadas} vencida(s) de ${totalP}`
+                                : `${pagas} de ${totalP}`
+                              : "-"}
                           </TableCell>
                           <TableCell align="center">
                             <Tooltip title="Ver detalhes">

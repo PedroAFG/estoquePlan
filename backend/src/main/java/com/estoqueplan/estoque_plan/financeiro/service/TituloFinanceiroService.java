@@ -136,13 +136,23 @@ public class TituloFinanceiroService {
         return tituloRepo.save(titulo);
     }
 
+    @Transactional
     public List<TituloFinanceiroResponseDTO> listarTodos() {
-        return tituloRepo.findAll().stream().map(this::mapToResponse).toList();
+        atualizarStatusAtrasadosInterno();
+
+        return tituloRepo.findAll()
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
+    @Transactional
     public TituloFinanceiroResponseDTO buscarPorId(Long id) {
+        atualizarStatusAtrasadosInterno();
+
         TituloFinanceiro t = tituloRepo.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Título não encontrado: " + id));
+
         return mapToResponse(t);
     }
 
@@ -281,5 +291,80 @@ public class TituloFinanceiroService {
         }
 
         return dto;
+    }
+
+    @Transactional
+    public void atualizarStatusAtrasados() {
+        atualizarStatusAtrasadosInterno();
+    }
+
+    private void atualizarStatusAtrasadosInterno() {
+        List<TituloFinanceiro> titulos = tituloRepo.findAllNaoCanceladosComParcelas();
+        LocalDate hoje = LocalDate.now();
+
+        for (TituloFinanceiro titulo : titulos) {
+            atualizarParcelasAtrasadas(titulo, hoje);
+            recalcularStatusTitulo(titulo);
+        }
+
+        tituloRepo.saveAll(titulos);
+    }
+
+    private void atualizarParcelasAtrasadas(TituloFinanceiro titulo, LocalDate hoje) {
+        if (titulo.getParcelas() == null) {
+            return;
+        }
+
+        for (ParcelaFinanceira parcela : titulo.getParcelas()) {
+            if (parcela.getStatus() == StatusTitulo.PENDENTE
+                    && parcela.getVencimento() != null
+                    && parcela.getVencimento().isBefore(hoje)) {
+                parcela.setStatus(StatusTitulo.ATRASADO);
+            }
+        }
+    }
+
+    private void recalcularStatusTitulo(TituloFinanceiro titulo) {
+        if (titulo.getStatus() == StatusTitulo.CANCELADO) {
+            return;
+        }
+
+        if (titulo.getParcelas() == null || titulo.getParcelas().isEmpty()) {
+            titulo.setStatus(StatusTitulo.PENDENTE);
+            return;
+        }
+
+        boolean todasPagas = titulo.getParcelas().stream()
+                .allMatch(p -> p.getStatus() == StatusTitulo.PAGO_RECEBIDO);
+
+        boolean algumaAtrasada = titulo.getParcelas().stream()
+                .anyMatch(p -> p.getStatus() == StatusTitulo.ATRASADO);
+
+        boolean algumaPendente = titulo.getParcelas().stream()
+                .anyMatch(p -> p.getStatus() == StatusTitulo.PENDENTE);
+
+        boolean todasCanceladas = titulo.getParcelas().stream()
+                .allMatch(p -> p.getStatus() == StatusTitulo.CANCELADO);
+
+        if (todasPagas) {
+            titulo.setStatus(StatusTitulo.PAGO_RECEBIDO);
+        } else if (algumaAtrasada) {
+            titulo.setStatus(StatusTitulo.ATRASADO);
+        } else if (algumaPendente) {
+            titulo.setStatus(StatusTitulo.PENDENTE);
+        } else if (todasCanceladas) {
+            titulo.setStatus(StatusTitulo.CANCELADO);
+        }
+    }
+
+    @Transactional
+    public void recalcularStatusTitulo(Long tituloId) {
+        TituloFinanceiro titulo = tituloRepo.findById(tituloId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Título não encontrado: " + tituloId));
+
+        atualizarParcelasAtrasadas(titulo, LocalDate.now());
+        recalcularStatusTitulo(titulo);
+
+        tituloRepo.save(titulo);
     }
 }
