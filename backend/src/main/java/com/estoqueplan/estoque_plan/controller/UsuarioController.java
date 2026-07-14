@@ -37,10 +37,15 @@ public class UsuarioController {
         return ResponseEntity.ok(usuarios);
     }
 
+    @PreAuthorize("hasRole('ADMINISTRADOR')")
     @PostMapping
-    public ResponseEntity<UsuarioDTO> criarUsuario(@RequestBody UsuarioCreateDTO usuarioCreateDTO) {
+    public ResponseEntity<UsuarioDTO> criarUsuario(
+            @RequestBody UsuarioCreateDTO usuarioCreateDTO) {
         Usuario novoUsuario = usuarioService.criarUsuarioViaDTO(usuarioCreateDTO);
-        return ResponseEntity.status(HttpStatus.CREATED).body(toUsuarioDTO(novoUsuario));
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(toUsuarioDTO(novoUsuario));
     }
 
     @PreAuthorize("hasRole('ADMINISTRADOR')")
